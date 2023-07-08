@@ -8,3 +8,4 @@ supporting various common file formats including:
 - wav
 - ogg
 - m4a
+- mp4 (audio only)
