@@ -2,7 +2,7 @@
 import tkinter as tk
 from typing import Callable
 
-from colours import BUTTON_COLOURS
+from colours import BUTTON_COLOURS, LINE_COLOURS
 from utils import inter
 
 
@@ -31,3 +31,30 @@ class Button(tk.Button):
     def on_exit(self) -> None:
         """No longer hovering over the button."""
         self.config(bg=self.normal_bg)
+
+
+class HorizontalLine(tk.Canvas):
+    """
+    Represents a horizontal line,
+    which can be used as a separator, for example.
+    """
+
+    def __init__(
+        self, master: tk.Widget, width: int, height: int = 1,
+        colour: str = LINE_COLOURS["background"],
+        active_colour: str = LINE_COLOURS["activebackground"]
+    ) -> None:
+        super().__init__(
+            master, width=width, height=height, bg=colour)
+        self.colour = colour
+        self.active_colour = active_colour
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def on_enter(self) -> None:
+        """Hovering over the line."""
+        self.config(bg=self.active_colour)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the line."""
+        self.config(bg=self.colour)

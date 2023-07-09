@@ -9,7 +9,7 @@ FONT_FOLDER = pathlib.Path(__file__).parent.parent / "font"
 pyglet.font.add_file(str(FONT_FOLDER / "Inter.ttf"))
 
 # Maximum lengths to display in the GUI.
-MAX_AUDIO_NAME_DISPLAY_LENGTH = 32
+MAX_AUDIO_NAME_DISPLAY_LENGTH = 24
 MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH = 64
 
 

@@ -35,12 +35,10 @@ def load_audio(file_path: str) -> Audio:
     commands = (
         "ffprobe", "-print_format", "json", 
         "-show_format", "-show_streams", file_path)
-    # Run the command, remove return and new lines in the output,
-    # and load the JSON string.
+    # Run the command and load the JSON string.
     json_data = json.loads(
         subprocess.check_output(
-            commands, creationflags=subprocess.CREATE_NO_WINDOW
-        ).decode().replace("\r\n", ""))
+            commands, creationflags=subprocess.CREATE_NO_WINDOW).decode())
 
     try:
         duration = float(json_data["format"]["duration"])

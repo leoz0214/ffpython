@@ -37,7 +37,7 @@ class AudioPlayer(tk.Frame):
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         self.frame = idle.IdleFrame(self)
-        self.frame.pack()
+        self.frame.pack(padx=25, pady=25)
     
     def open(self) -> None:
         """Opens an audio file in the GUI."""
@@ -75,7 +75,7 @@ class AudioPlayer(tk.Frame):
         self.frame = (
             idle.IdleFrame if self.current is None else loaded.LoadedFrame
         )(self)
-        self.frame.pack()
+        self.frame.pack(padx=25, pady=25)
 
 
 def main() -> None:
