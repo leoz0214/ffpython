@@ -35,3 +35,17 @@ def limit_length(string: str, max_length: int) -> str:
     left = string[:max_length//2 - 2]
     right = string[-max_length//2 + 2:]
     return f"{left}....{right}"
+
+
+def format_seconds(seconds: float) -> str:
+    """
+    Converts seconds to either HH:MM:SS or MM:SS,
+    whichever one is appropriate.
+    """
+    seconds = int(seconds)
+    hours = str(seconds // 3600).zfill(2)
+    minutes = str(seconds // 60 % 60).zfill(2)
+    seconds = str(seconds % 60).zfill(2)
+    if hours != "00":
+        return f"{hours}:{minutes}:{seconds}"
+    return f"{minutes}:{seconds}"

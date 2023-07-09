@@ -6,6 +6,6 @@ supporting various common file formats including:
 
 - mp3
 - wav
-- ogg
+- ogg/oga
 - m4a
 - mp4 (audio only)
