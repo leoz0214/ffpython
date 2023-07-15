@@ -1,5 +1,9 @@
 """Main module of the app."""
+import threading
+import time
 import tkinter as tk
+from contextlib import suppress
+from timeit import default_timer as timer
 from tkinter import filedialog
 from tkinter import messagebox
 
@@ -33,8 +37,10 @@ class AudioPlayer(tk.Frame):
         self.root = root
         self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
         self.root.title(TITLE)
-        self.current = None
         self.root.bind("<Control-o>", lambda *_: self.open())
+
+        self.current = None
+        self.start_time = None
 
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
@@ -57,6 +63,10 @@ class AudioPlayer(tk.Frame):
                     "Invalid file provided - "
                     "the file extension is not supported.")
             return
+        if self.current is not None and file_path == self.current.file_path:
+            # Already opened in the program.
+            return
+
         try:
             self.current = load_audio(file_path)
         except Exception as e:
@@ -65,6 +75,10 @@ class AudioPlayer(tk.Frame):
                     f"Failed to load audio due to the following error: {e}")
             return
         self.update_state()
+
+        # Playback thread (daemon - stops when the app is closed).
+        playback_thread = threading.Thread(target=self.play, daemon=True)
+        playback_thread.start()
     
     def update_state(self) -> None:
         """
@@ -76,6 +90,17 @@ class AudioPlayer(tk.Frame):
             idle.IdleFrame if self.current is None else loaded.LoadedFrame
         )(self)
         self.frame.pack(padx=25, pady=25)
+
+    def play(self) -> None:
+        """Plays the audio. Must be called though a thread."""
+        self.start_time = timer()
+
+        with suppress(tk.TclError):
+            # Main audio loop.
+            while True:
+                time.sleep(0.1)
+                current_seconds = timer() - self.start_time
+                self.frame.update_progress(current_seconds)
 
 
 def main() -> None:

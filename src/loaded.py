@@ -40,6 +40,17 @@ class LoadedFrame(tk.Frame):
             row=3, column=0, columnspan=2, padx=5, pady=(25, 5))
         self.open_file_button.grid(
             row=4, column=1, sticky="e", padx=(25, 5), pady=10)
+    
+    def update_progress(self, current_seconds: float) -> None:
+        """
+        Updates the progress of the playback
+        based on the current time in the audio file.
+        """
+        duration = self.master.current.duration
+        self.play_progress_frame.current_time_label.config(
+            text=format_seconds(min(duration, current_seconds)))
+        progress = current_seconds / duration
+        self.play_progress_frame.progress_bar.display_progress(progress)
 
 
 class PlayProgressFrame(tk.Frame):
@@ -86,7 +97,6 @@ class PlayProgressBar(tk.Canvas):
             outline=PROGRESS_BAR_REMAINING_COLOUR)
         self.progress_rect = None
         self.progress_circle = None
-        self.bind("<Motion>", self.movement)
         self.display_progress(0)
     
     def display_progress(self, fraction: float) -> None:
@@ -118,14 +128,3 @@ class PlayProgressBar(tk.Canvas):
             fill=PROGRESS_CIRCLE_COLOURS["background"],
             activefill=PROGRESS_CIRCLE_COLOURS["activebackground"],
             outline=PROGRESS_CIRCLE_COLOURS["outline"])
-    
-    def movement(self, event) -> None:
-        """Handles mouse movement within this progress bar."""
-        if self.progress_circle is None:
-            return
-        x = event.x - self.circle_mid_x
-        y = event.y - self.circle_mid_y
-        if x ** 2 + y ** 2 <= PROGRESS_CIRCLE_RADIUS ** 2:
-            self.config(cursor="hand2")
-        else:
-            self.config(cursor="")
