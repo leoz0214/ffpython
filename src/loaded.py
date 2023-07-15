@@ -61,15 +61,19 @@ class PlayProgressFrame(tk.Frame):
 
     def __init__(self, master: LoadedFrame) -> None:
         super().__init__(master)
+        audio = master.master.current
+        # Either HH:MM:SS or MM:SS, select a suitable width based on that.
+        width = 5 if audio.duration < 3600 else 8
+
         self.current_time_label = tk.Label(
-            self, font=inter(12), width=9, text=format_seconds(0))
+            self, font=inter(12), width=width,
+            text=format_seconds(0), anchor="w")
         
         self.progress_bar = PlayProgressBar(self)
 
-        audio = master.master.current
         self.total_time_label = tk.Label(
-            self, font=inter(12), width=9,
-            text=format_seconds(audio.duration))
+            self, font=inter(12), width=width,
+            text=format_seconds(audio.duration), anchor="w")
         
         self.current_time_label.grid(row=0, column=0)
         self.progress_bar.grid(row=0, column=1)

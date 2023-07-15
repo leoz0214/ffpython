@@ -3,7 +3,6 @@ import threading
 import time
 import tkinter as tk
 from contextlib import suppress
-from timeit import default_timer as timer
 from tkinter import filedialog
 from tkinter import messagebox
 
@@ -63,9 +62,12 @@ class AudioPlayer(tk.Frame):
                     "Invalid file provided - "
                     "the file extension is not supported.")
             return
-        if self.current is not None and file_path == self.current.file_path:
-            # Already opened in the program.
-            return
+
+        if self.current is not None:
+            if file_path == self.current.file_path:
+                # Already opened in the program.
+                return
+            self.stop()
 
         try:
             self.current = load_audio(file_path)
@@ -93,14 +95,25 @@ class AudioPlayer(tk.Frame):
 
     def play(self) -> None:
         """Plays the audio. Must be called though a thread."""
-        self.start_time = timer()
-
-        with suppress(tk.TclError):
-            # Main audio loop.
-            while True:
-                time.sleep(0.1)
-                current_seconds = timer() - self.start_time
-                self.frame.update_progress(current_seconds)
+        try:
+            self.current.play()
+            with suppress(tk.TclError):
+                # Main audio loop.
+                while True:
+                    time.sleep(0.1)
+                    self.frame.update_progress(self.current.current_seconds)
+        except Exception as e:
+            messagebox.showerror(
+                "Playback Error",
+                    "Unfortunately, an error has "
+                    f"occurred while playing audio: {e}")
+            self.stop()
+    
+    def stop(self) -> None:
+        """Terminates audio playback."""
+        self.current.stop()
+        self.current = None
+        self.update_state()
 
 
 def main() -> None:

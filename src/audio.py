@@ -6,6 +6,8 @@ ffmpeg is fully installed and added to PATH.
 import json
 import pathlib
 import subprocess
+import time
+from timeit import default_timer as timer
 
 from utils import (
     MAX_AUDIO_NAME_DISPLAY_LENGTH, MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH,
@@ -17,6 +19,8 @@ class Audio:
     """
     Represents an audio object in the app, providing key information
     Such as file path, name and metadata including duration.
+
+    Also allows the audio to be played, paused, stopped etc.
     """
 
     def __init__(self, file_path: str, duration: float) -> None:
@@ -27,6 +31,30 @@ class Audio:
         self.name_display = limit_length(
             self.name, MAX_AUDIO_NAME_DISPLAY_LENGTH)
         self.duration = duration
+        self.start_time = None
+        self.process = None
+    
+    def play(self) -> None:
+        """Begins audio playback."""
+        command = ("ffplay", self.file_path, "-nodisp", "-autoexit", "-vn")
+        # Start command.
+        self.process = subprocess.Popen(
+            command, creationflags=subprocess.CREATE_NO_WINDOW)
+        # Gives some time for audio to start.
+        time.sleep(0.5)
+        if self.start_time is None:
+            self.start_time = timer()
+    
+    def stop(self) -> None:
+        """Stops audio playback."""
+        self.process.terminate()
+        self.start_time = None
+        self.process = None
+    
+    @property
+    def current_seconds(self) -> float:
+        """Current time in the audio playback."""
+        return timer() - self.start_time
 
 
 def load_audio(file_path: str) -> Audio:
