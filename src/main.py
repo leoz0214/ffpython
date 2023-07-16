@@ -13,7 +13,15 @@ from colours import FG, BG
 
 
 TITLE = "FFPython"
-ALLOWED_EXTENSIONS = {
+ALLOWED_EXTENSIONS = (
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".oga",
+    ".m4a",
+    ".mp4"
+)
+ALLOWED_EXTENSIONS_DICT = {
     ".mp3": "MP3",
     ".wav": "WAV",
     ".ogg": "OGG",
@@ -48,8 +56,10 @@ class AudioPlayer(tk.Frame):
         """Opens an audio file in the GUI."""
         file_path = filedialog.askopenfilename(
             filetypes=(
-                (name, extension)
-                for extension, name in ALLOWED_EXTENSIONS.items()))
+                *(("Audio", extension) for extension in ALLOWED_EXTENSIONS),
+                *(
+                    (name, extension)
+                    for extension, name in ALLOWED_EXTENSIONS_DICT.items())))
         if not file_path:
             # Cancelled.
             return
