@@ -14,12 +14,12 @@ class Button(tk.Button):
         width: int = 15, border: int = 0,
         bg: str = BUTTON_COLOURS["background"],
         activebg: str = BUTTON_COLOURS["activebackground"],
-        command: Callable = lambda: None, cursor: str = "hand2"
+        command: Callable = lambda: None, cursor: str = "hand2", **kwargs
     ) -> None:
         super().__init__(
             master, text=text, font=font, width=width, border=border,
             command=command, bg=bg, activebackground=activebg,
-            cursor=cursor)
+            cursor=cursor, **kwargs)
         self.normal_bg = bg
         self.bind("<Enter>", lambda *_: self.on_enter())
         self.bind("<Leave>", lambda *_: self.on_exit())

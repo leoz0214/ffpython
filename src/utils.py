@@ -2,10 +2,15 @@
 import pathlib
 
 import pyglet
+from PIL import ImageTk
+
+
+APP_FOLDER = pathlib.Path(__file__).parent.parent
+IMAGES_FOLDER = APP_FOLDER / "images"
+FONT_FOLDER = APP_FOLDER / "font"
 
 
 # Load Inter font downloaded online.
-FONT_FOLDER = pathlib.Path(__file__).parent.parent / "font"
 pyglet.font.add_file(str(FONT_FOLDER / "Inter.ttf"))
 
 # Maximum lengths to display in the GUI.
@@ -49,3 +54,9 @@ def format_seconds(seconds: float) -> str:
     if hours != "00":
         return f"{hours}:{minutes}:{seconds}"
     return f"{minutes}:{seconds}"
+
+
+def load_image(image_name: str) -> ImageTk.PhotoImage:
+    """Loads an image from a given file name, ready to be displayed."""
+    image_file_path = IMAGES_FOLDER / image_name
+    return ImageTk.PhotoImage(file=image_file_path)

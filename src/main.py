@@ -104,15 +104,24 @@ class AudioPlayer(tk.Frame):
         self.frame.pack(padx=25, pady=25)
 
     def play(self) -> None:
-        """Plays the audio. Must be called though a thread."""
+        """Plays the audio. Must be called through a thread."""
         try:
-            self.current.play()
+            self.current.play(self.current.current_seconds)
             with suppress(tk.TclError):
                 # Main audio loop.
                 while self.current.is_playing:
                     time.sleep(0.1)
                     self.frame.update_progress(self.current.current_seconds)
                 self.frame.stop_button.config(text="Exit Playback")
+            if not self.current.paused:
+                # Make progress 100% to indicate completion.
+                self.frame.update_progress(self.current.duration)
+                # Resets current audio in case of replay.
+                self.current.reset()
+                # Sets 'paused' to None (neither paused not resumed.)
+                self.frame.play_controls_frame.paused = None
+                # Sets resume image to replay audio if clicked.
+                self.frame.play_controls_frame.state_button.set_resume_image()
         except Exception as e:
             if self.current is None:
                 # Already stopped prematurely.
@@ -123,11 +132,27 @@ class AudioPlayer(tk.Frame):
                     f"occurred while playing audio: {e}")
             self.stop()
     
+    def pause(self) -> None:
+        """Pauses the audio."""
+        self.current.pause()
+    
+    def resume(self) -> None:
+        """Resumes the audio."""
+        self.current.resume()
+        playback_thread = threading.Thread(target=self.play, daemon=True)
+        playback_thread.start()
+    
     def stop(self) -> None:
         """Terminates audio playback."""
         # Stops and returns None, so current becomes None.
         self.current = self.current.stop()
         self.update_state()
+    
+    def replay(self) -> None:
+        """Replays the audio."""
+        self.frame.update_progress(0)
+        playback_thread = threading.Thread(target=self.play, daemon=True)
+        playback_thread.start()
 
 
 def main() -> None:

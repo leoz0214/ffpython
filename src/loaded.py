@@ -5,7 +5,7 @@ import main
 from colours import (
     PROGRESS_BAR_REMAINING_COLOUR, PROGRESS_BAR_DONE_COLOURS,
     PROGRESS_CIRCLE_COLOURS, BG)
-from utils import inter, format_seconds
+from utils import inter, format_seconds, load_image
 from widgets import Button, HorizontalLine
 
 
@@ -28,6 +28,9 @@ class LoadedFrame(tk.Frame):
         self.separator = HorizontalLine(self, 750)
         
         self.play_progress_frame = PlayProgressFrame(self)
+        self.play_controls_frame = PlayControlsFrame(self)
+
+        self.separator2 = HorizontalLine(self, 750)
         
         self.open_file_button = Button(
             self, "Open File", font=inter(12), command=master.open)
@@ -40,10 +43,14 @@ class LoadedFrame(tk.Frame):
             row=2, column=0, columnspan=2, sticky="w", padx=5, pady=2)
         self.play_progress_frame.grid(
             row=3, column=0, columnspan=2, padx=5, pady=(25, 5))
+        self.play_controls_frame.grid(
+            row=4, column=0, columnspan=2, padx=5, pady=(5, 25))
+        self.separator2.grid(
+            row=5, column=0, columnspan=2, sticky="w", padx=5, pady=2)
         self.open_file_button.grid(
-            row=4, column=1, sticky="e", padx=(25, 5), pady=5)
+            row=6, column=1, sticky="e", padx=(25, 5), pady=5)
         self.stop_button.grid(
-            row=5, column=1, sticky="e", padx=(25, 5), pady=5)
+            row=7, column=1, sticky="e", padx=(25, 5), pady=5)
     
     def update_progress(self, current_seconds: float) -> None:
         """
@@ -136,3 +143,72 @@ class PlayProgressBar(tk.Canvas):
             fill=PROGRESS_CIRCLE_COLOURS["background"],
             activefill=PROGRESS_CIRCLE_COLOURS["activebackground"],
             outline=PROGRESS_CIRCLE_COLOURS["outline"])
+
+
+class PlayControlsFrame(tk.Frame):
+    """
+    Handles playback controls e.g. pause, resume, seek back, seek forward etc.
+    """
+
+    def __init__(self, master: LoadedFrame) -> None:
+        super().__init__(master)
+        self.paused = False
+        self.state_button = PlayStateButton(self)
+
+        self.state_button.grid(row=0, column=0)
+    
+    def change_state(self) -> None:
+        """Pauses the audio if playing, resumes the audio if paused."""
+        if self.paused is None:
+            # No longer playing - new playback.
+            self.master.master.replay()
+            self.state_button.set_pause_image()
+            self.paused = False
+            return
+        if self.paused:
+            # Paused, so now resume.
+            self.master.master.resume()
+            self.state_button.set_pause_image()
+        else:
+            # Playing, so now pause.
+            self.master.master.pause()
+            self.state_button.set_resume_image()
+        self.paused = not self.paused
+
+
+class PlayStateButton(Button):
+    """A button to allow the playback to be paused and resumed."""
+
+    def __init__(self, master: PlayControlsFrame) -> None:
+        self.pause_image = load_image("pause.png")
+        self.resume_image = load_image("resume.png")
+        self.pause_hover_image = load_image("pausehover.png")
+        self.resume_hover_image = load_image("resumehover.png")
+        self.image = self.pause_image
+        self.hover_image = self.pause_hover_image
+        super().__init__(
+            master, None, None, None, bg=BG, activebg=BG,
+            command=master.change_state, image=self.image)
+
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def set_pause_image(self) -> None:
+        """Displays the pause button."""
+        self.image = self.pause_image
+        self.hover_image = self.pause_hover_image
+        self.config(image=self.image)
+    
+    def set_resume_image(self) -> None:
+        """Displays the resume button."""
+        self.image = self.resume_image
+        self.hover_image = self.resume_hover_image
+        self.config(image=self.image)
+    
+    def on_enter(self) -> None:
+        """Hovering over the image."""
+        self.config(image=self.hover_image)
+
+    def on_exit(self) -> None:
+        """No longer hovering over the image."""
+        self.config(image=self.image)

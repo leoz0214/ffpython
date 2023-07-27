@@ -31,30 +31,54 @@ class Audio:
         self.name_display = limit_length(
             self.name, MAX_AUDIO_NAME_DISPLAY_LENGTH)
         self.duration = duration
+        self.reset()
+
+    def reset(self) -> None:
+        """Resets all playback attributes."""
         self.start_time = None
+        self.pause_start_time = None
+        self.paused_time = 0
+        self.paused = False
         self.process = None
     
-    def play(self) -> None:
-        """Begins audio playback."""
-        command = ("ffplay", self.file_path, "-nodisp", "-autoexit", "-vn")
+    def play(self, seek: float = 0) -> None:
+        """Begins or resumes audio playback."""
+        command = (
+            "ffplay", self.file_path, "-nodisp",
+            "-autoexit", "-vn", "-ss", str(seek))
         # Start command.
         self.process = subprocess.Popen(
             command, creationflags=subprocess.CREATE_NO_WINDOW)
-        # Gives some time for audio to start.
+        # Gives some time for audio to start. Due to subprocess.
+        # Does not need to be perfect, just reasonable.
         time.sleep(0.5)
         if self.start_time is None:
             self.start_time = timer()
     
+    def pause(self) -> None:
+        """Pauses audio playback."""
+        self.pause_start_time = timer()
+        self.process.terminate()
+        self.process = None
+        self.paused = True
+    
+    def resume(self) -> None:
+        """Prepares to resume audio playback."""
+        self.paused_time += timer() - self.pause_start_time
+        self.paused = False
+    
     def stop(self) -> None:
         """Stops audio playback."""
-        self.process.terminate()
-        self.start_time = None
-        self.process = None
+        if self.process is not None:
+            self.process.terminate()
+        self.reset()
     
     @property
     def current_seconds(self) -> float:
         """Current time in the audio playback."""
-        return timer() - self.start_time
+        if self.start_time is None:
+            return 0
+        return timer() - self.start_time - self.paused_time
     
     @property
     def is_playing(self) -> bool:
