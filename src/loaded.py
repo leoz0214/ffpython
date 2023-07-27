@@ -31,6 +31,8 @@ class LoadedFrame(tk.Frame):
         
         self.open_file_button = Button(
             self, "Open File", font=inter(12), command=master.open)
+        self.stop_button = Button(
+            self, "Stop Playback", font=inter(12), command=master.stop)
         
         self.name_label.grid(row=0, column=0, sticky="w", padx=5, pady=(100, 2))
         self.file_path_label.grid(row=1, column=0, sticky="w", padx=5, pady=2)
@@ -39,7 +41,9 @@ class LoadedFrame(tk.Frame):
         self.play_progress_frame.grid(
             row=3, column=0, columnspan=2, padx=5, pady=(25, 5))
         self.open_file_button.grid(
-            row=4, column=1, sticky="e", padx=(25, 5), pady=10)
+            row=4, column=1, sticky="e", padx=(25, 5), pady=5)
+        self.stop_button.grid(
+            row=5, column=1, sticky="e", padx=(25, 5), pady=5)
     
     def update_progress(self, current_seconds: float) -> None:
         """

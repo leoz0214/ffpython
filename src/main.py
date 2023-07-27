@@ -109,10 +109,14 @@ class AudioPlayer(tk.Frame):
             self.current.play()
             with suppress(tk.TclError):
                 # Main audio loop.
-                while True:
+                while self.current.is_playing:
                     time.sleep(0.1)
                     self.frame.update_progress(self.current.current_seconds)
+                self.frame.stop_button.config(text="Exit Playback")
         except Exception as e:
+            if self.current is None:
+                # Already stopped prematurely.
+                return
             messagebox.showerror(
                 "Playback Error",
                     "Unfortunately, an error has "
@@ -121,8 +125,8 @@ class AudioPlayer(tk.Frame):
     
     def stop(self) -> None:
         """Terminates audio playback."""
-        self.current.stop()
-        self.current = None
+        # Stops and returns None, so current becomes None.
+        self.current = self.current.stop()
         self.update_state()
 
 

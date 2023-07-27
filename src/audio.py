@@ -55,6 +55,10 @@ class Audio:
     def current_seconds(self) -> float:
         """Current time in the audio playback."""
         return timer() - self.start_time
+    
+    @property
+    def is_playing(self) -> bool:
+        return self.process is not None and self.process.poll() is None
 
 
 def load_audio(file_path: str) -> Audio:
