@@ -31,6 +31,7 @@ ALLOWED_EXTENSIONS_DICT = {
 }
 MIN_WIDTH = 400
 MIN_HEIGHT = 300
+SPACEBAR_MIN_DELAY = 0.5
 
 
 class AudioPlayer(tk.Frame):
@@ -48,6 +49,7 @@ class AudioPlayer(tk.Frame):
 
         self.current = None
         self.start_time = None
+        self.last_spacebar_input = None
 
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
@@ -87,6 +89,9 @@ class AudioPlayer(tk.Frame):
                     f"Failed to load audio due to the following error: {e}")
             return
         self.update_state()
+        self.root.bind(
+            "<space>",
+            lambda *_: self.frame.play_controls_frame.change_state())
 
         # Playback thread (daemon - stops when the app is closed).
         playback_thread = threading.Thread(target=self.play, daemon=True)
@@ -111,9 +116,14 @@ class AudioPlayer(tk.Frame):
                 # Main audio loop.
                 while self.current.is_playing:
                     time.sleep(0.1)
+                    if not self.current.is_playing:
+                        break
                     self.frame.update_progress(self.current.current_seconds)
+            if (
+                not self.current.paused
+                and self.current.current_seconds >= self.current.duration
+            ):
                 self.frame.stop_button.config(text="Exit Playback")
-            if not self.current.paused:
                 # Make progress 100% to indicate completion.
                 self.frame.update_progress(self.current.duration)
                 # Resets current audio in case of replay.
@@ -145,6 +155,7 @@ class AudioPlayer(tk.Frame):
     def stop(self) -> None:
         """Terminates audio playback."""
         # Stops and returns None, so current becomes None.
+        self.root.unbind("<space>")
         self.current = self.current.stop()
         self.update_state()
     

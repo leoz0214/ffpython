@@ -8,6 +8,7 @@ import pathlib
 import subprocess
 import time
 from timeit import default_timer as timer
+from typing import Callable, Any
 
 from utils import (
     MAX_AUDIO_NAME_DISPLAY_LENGTH, MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH,
@@ -36,6 +37,8 @@ class Audio:
     def reset(self) -> None:
         """Resets all playback attributes."""
         self.start_time = None
+        # Flag to indicate if currently starting/stopping process.
+        self.handling_process = False
         self.pause_start_time = None
         self.paused_time = 0
         self.paused = False
@@ -47,6 +50,7 @@ class Audio:
             "ffplay", self.file_path, "-nodisp",
             "-autoexit", "-vn", "-ss", str(seek))
         # Start command.
+        self.handling_process = True
         self.process = subprocess.Popen(
             command, creationflags=subprocess.CREATE_NO_WINDOW)
         # Gives some time for audio to start. Due to subprocess.
@@ -54,23 +58,44 @@ class Audio:
         time.sleep(0.5)
         if self.start_time is None:
             self.start_time = timer()
+        self.handling_process = False
     
+    def terminate(self) -> None:
+        """Terminates the process."""
+        self.handling_process = True
+        self.process.terminate()
+        self.handling_process = False
+        self.process = None
+    
+    @staticmethod
+    def wait(method: Callable) -> Callable:
+        """Decorator to wait for process creation/termination."""
+        def wrapper(self) -> Any:
+            # Wait until process handling done.
+            while self.handling_process:
+                time.sleep(0.01)
+            return method(self)
+        return wrapper
+    
+    @wait
     def pause(self) -> None:
         """Pauses audio playback."""
         self.pause_start_time = timer()
-        self.process.terminate()
-        self.process = None
         self.paused = True
+        if self.process is not None:
+            self.terminate()
     
+    @wait
     def resume(self) -> None:
         """Prepares to resume audio playback."""
         self.paused_time += timer() - self.pause_start_time
         self.paused = False
     
+    @wait
     def stop(self) -> None:
         """Stops audio playback."""
         if self.process is not None:
-            self.process.terminate()
+            self.terminate()
         self.reset()
     
     @property
