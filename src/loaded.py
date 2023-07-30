@@ -1,6 +1,7 @@
 """Main handler of the GUI whilst audio is playing."""
 import tkinter as tk
 from timeit import default_timer as timer
+from typing import Callable, Any
 
 import main
 from colours import (
@@ -14,6 +15,7 @@ PROGRESS_BAR_WIDTH = 500
 PROGRESS_CIRCLE_RADIUS = 6
 PROGRESS_BAR_HEIGHT = 6
 STATE_CHANGE_REFRESH_RATE = 0.1
+ARROW_SEEK_CHANGE_REFRESH_RATE = 0.25
 
 
 class LoadedFrame(tk.Frame):
@@ -130,15 +132,15 @@ class PlayProgressBar(tk.Canvas):
             activeoutline=PROGRESS_BAR_DONE_COLOURS["activebackground"],
             tags="progress")
 
-        self.circle_mid_x = (
-            PROGRESS_BAR_WIDTH * fraction + PROGRESS_CIRCLE_RADIUS)
-        self.circle_mid_y = (
-            PROGRESS_BAR_HEIGHT + PROGRESS_CIRCLE_RADIUS * 2) / 2
+        circle_mid_x = (
+            (PROGRESS_BAR_WIDTH - PROGRESS_CIRCLE_RADIUS) * fraction
+            + PROGRESS_CIRCLE_RADIUS * 2)
+        circle_mid_y = (PROGRESS_BAR_HEIGHT + PROGRESS_CIRCLE_RADIUS * 2) / 2
         self.create_oval(
-            self.circle_mid_x - PROGRESS_CIRCLE_RADIUS,
-            self.circle_mid_y - PROGRESS_CIRCLE_RADIUS,
-            self.circle_mid_x + PROGRESS_CIRCLE_RADIUS,
-            self.circle_mid_y + PROGRESS_CIRCLE_RADIUS,
+            circle_mid_x - PROGRESS_CIRCLE_RADIUS,
+            circle_mid_y - PROGRESS_CIRCLE_RADIUS,
+            circle_mid_x + PROGRESS_CIRCLE_RADIUS,
+            circle_mid_y + PROGRESS_CIRCLE_RADIUS,
             fill=PROGRESS_CIRCLE_COLOURS["background"],
             activefill=PROGRESS_CIRCLE_COLOURS["activebackground"],
             outline=PROGRESS_CIRCLE_COLOURS["outline"], tags="progress")
@@ -152,20 +154,36 @@ class PlayControlsFrame(tk.Frame):
     def __init__(self, master: LoadedFrame) -> None:
         super().__init__(master)
         self.paused = False
+        self.back_button = ArrowSeekButton(
+            self, "back.png", "backhover.png", self.seek_back)
         self.state_button = PlayStateButton(self)
-        self.last_state_change = None
+        self.forward_button = ArrowSeekButton(
+            self, "forward.png", "forwardhover.png", self.seek_forward)
+        self.last_change = None
 
-        self.state_button.grid(row=0, column=0)
+        self.back_button.grid(row=0, column=0, padx=10)
+        self.state_button.grid(row=0, column=1, padx=10)
+        self.forward_button.grid(row=0, column=2, padx=10)
     
+    @staticmethod
+    def change(delay: float) -> Callable:
+        """Decorator to limit rate of changes due to threading instability."""
+        def inner(method: Callable) -> Callable:
+            def wrapper(self: "PlayControlsFrame", forced: bool = False) -> Any:
+                timestamp = timer()
+                if (
+                    not forced and self.last_change is not None
+                    and timestamp - self.last_change < delay
+                ):
+                    return
+                self.last_change = timestamp
+                return method(self)
+            return wrapper
+        return inner
+    
+    @change(STATE_CHANGE_REFRESH_RATE)
     def change_state(self) -> None:
         """Pauses the audio if playing, resumes the audio if paused."""
-        timestamp = timer()
-        if (
-            self.last_state_change is not None
-            and timestamp - self.last_state_change < STATE_CHANGE_REFRESH_RATE
-        ):
-            return
-        self.last_state_change = timestamp
         if self.paused is None:
             # No longer playing - new playback.
             self.master.master.replay()
@@ -181,6 +199,16 @@ class PlayControlsFrame(tk.Frame):
             self.master.master.pause()
             self.state_button.set_resume_image()
         self.paused = not self.paused
+    
+    @change(ARROW_SEEK_CHANGE_REFRESH_RATE)
+    def seek_back(self) -> None:
+        """Moves back in playback."""
+        self.master.master.seek_back()
+
+    @change(ARROW_SEEK_CHANGE_REFRESH_RATE)
+    def seek_forward(self) -> None:
+        """Moves forward in playback."""
+        self.master.master.seek_forward()
 
 
 class PlayStateButton(Button):
@@ -218,4 +246,29 @@ class PlayStateButton(Button):
 
     def on_exit(self) -> None:
         """No longer hovering over the image."""
+        self.config(image=self.image)
+
+
+class ArrowSeekButton(Button):
+    """Allows the user to move back or forward in playback."""
+
+    def __init__(
+        self, master: PlayControlsFrame, image: str, hover_image: str,
+        command: Callable
+    ):
+        self.image = load_image(image)
+        self.hover_image = load_image(hover_image)
+        super().__init__(
+            master, None, None, None, bg=BG, activebg=BG,
+            command=command, image=self.image)
+
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def on_enter(self) -> None:
+        """Hovering over the image button."""
+        self.config(image=self.hover_image)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the image button."""
         self.config(image=self.image)

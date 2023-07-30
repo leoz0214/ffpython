@@ -32,6 +32,7 @@ ALLOWED_EXTENSIONS_DICT = {
 MIN_WIDTH = 400
 MIN_HEIGHT = 300
 SPACEBAR_MIN_DELAY = 0.5
+SEEK_SECONDS = 10
 
 
 class AudioPlayer(tk.Frame):
@@ -48,7 +49,6 @@ class AudioPlayer(tk.Frame):
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         self.current = None
-        self.start_time = None
         self.last_spacebar_input = None
 
         self.frame = idle.IdleFrame(self)
@@ -89,9 +89,16 @@ class AudioPlayer(tk.Frame):
                     f"Failed to load audio due to the following error: {e}")
             return
         self.update_state()
+
+        # Binds playback control keys.
         self.root.bind(
             "<space>",
             lambda *_: self.frame.play_controls_frame.change_state())
+        self.root.bind(
+            "<Left>", lambda *_: self.frame.play_controls_frame.seek_back())
+        self.root.bind(
+            "<Right>",
+            lambda *_: self.frame.play_controls_frame.seek_forward())
 
         # Playback thread (daemon - stops when the app is closed).
         playback_thread = threading.Thread(target=self.play, daemon=True)
@@ -108,20 +115,24 @@ class AudioPlayer(tk.Frame):
         )(self)
         self.frame.pack(padx=25, pady=25)
 
-    def play(self) -> None:
+    def play(self, from_seek: bool = False) -> None:
         """Plays the audio. Must be called through a thread."""
         try:
-            self.current.play(self.current.current_seconds)
-            with suppress(tk.TclError):
-                # Main audio loop.
-                while self.current.is_playing:
-                    time.sleep(0.1)
-                    if not self.current.is_playing:
-                        break
-                    self.frame.update_progress(self.current.current_seconds)
+            if not (
+                from_seek
+                and self.current.current_seconds + 0.5 >= self.current.duration
+            ):
+                self.current.play(self.current.current_seconds)
+                with suppress(tk.TclError):
+                    # Main audio loop.
+                    while self.current.is_playing:
+                        time.sleep(0.1)
+                        if not self.current.is_playing:
+                            break
+                        self.frame.update_progress(self.current.current_seconds)
             if (
                 not self.current.paused
-                and self.current.current_seconds >= self.current.duration
+                and self.current.current_seconds + 0.5 >= self.current.duration
             ):
                 self.frame.stop_button.config(text="Exit Playback")
                 # Make progress 100% to indicate completion.
@@ -154,16 +165,45 @@ class AudioPlayer(tk.Frame):
     
     def stop(self) -> None:
         """Terminates audio playback."""
+        # Unbinds audio playback control keys.
+        for key in ("space", "Left", "Right"):
+            self.root.unbind(f"<{key}>")
         # Stops and returns None, so current becomes None.
-        self.root.unbind("<space>")
         self.current = self.current.stop()
         self.update_state()
     
     def replay(self) -> None:
         """Replays the audio."""
         self.frame.update_progress(0)
+        self.frame.stop_button.config(text="Stop Playback")
         playback_thread = threading.Thread(target=self.play, daemon=True)
         playback_thread.start()
+    
+    def seek_back(self) -> None:
+        """Seeks back in the audio."""
+        if self.current.start_time is None:
+            # At end, seeking back, so no longer will be.
+            self.frame.stop_button.config(text="Stop Playback")
+            self.frame.play_controls_frame.paused = False
+            self.frame.play_controls_frame.state_button.set_pause_image()
+        if self.current.paused:
+            self.frame.play_controls_frame.change_state(forced=True)
+        self.current.seek_back(SEEK_SECONDS)
+        playback_thread = threading.Thread(
+            target=lambda: self.play(from_seek=True), daemon=True)
+        playback_thread.start()
+    
+    def seek_forward(self) -> None:
+        """Seeks forward in the audio."""
+        if self.current.start_time is None:
+            # End already reached, cannot seek any further.
+            return
+        if self.current.paused:
+            self.frame.play_controls_frame.change_state(forced=True)
+        self.current.seek_forward(SEEK_SECONDS)
+        playback_thread = threading.Thread(
+            target=lambda: self.play(from_seek=True), daemon=True)
+        playback_thread.start()   
 
 
 def main() -> None:

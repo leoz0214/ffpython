@@ -21,7 +21,7 @@ class Audio:
     Represents an audio object in the app, providing key information
     Such as file path, name and metadata including duration.
 
-    Also allows the audio to be played, paused, stopped etc.
+    Also allows the audio to be played, paused, stopped, sought etc.
     """
 
     def __init__(self, file_path: str, duration: float) -> None:
@@ -70,11 +70,24 @@ class Audio:
     @staticmethod
     def wait(method: Callable) -> Callable:
         """Decorator to wait for process creation/termination."""
-        def wrapper(self) -> Any:
+        def wrapper(self: "Audio", *args, **kwargs) -> Any:
             # Wait until process handling done.
             while self.handling_process:
                 time.sleep(0.01)
-            return method(self)
+            return method(self, *args, **kwargs)
+        return wrapper
+
+    @staticmethod
+    def handle_seek(method: Callable) -> Callable:
+        """Decorator for common tasks while seeking."""
+        def wrapper(self: "Audio", *args, **kwargs) -> Any:
+            if self.paused:
+                self.resume()
+            if self.process is not None:
+                self.handling_process = True
+                self.terminate()
+                self.handling_process = False
+            return method(self, *args, **kwargs)
         return wrapper
     
     @wait
@@ -97,6 +110,28 @@ class Audio:
         if self.process is not None:
             self.terminate()
         self.reset()
+    
+    @wait
+    @handle_seek
+    def seek_back(self, seconds: int) -> None:
+        """Seeks back a given number of seconds, ready to be played."""
+        # Easiest way to seek backwards is to increase the start time.
+        # Also ensure cannot seek to negative numbers (Required: t >= 0).
+        if self.start_time is None:
+            # Was reset upon completion, now no longer.
+            self.start_time = timer() - self.duration
+            self.start_time += min(self.duration, seconds)
+        else:
+            self.start_time += min(self.current_seconds, seconds)
+
+    @wait
+    @handle_seek
+    def seek_forward(self, seconds: int) -> None:
+        """Seeks forward a given number of seconds, ready to be played."""
+        # Easiest way to seek forwards is to decrease the start time.
+        # Also ensure cannot seek beyond duration (Required: t <= duration).
+        remaining_seconds = self.duration - self.current_seconds
+        self.start_time -= min(remaining_seconds, seconds)
     
     @property
     def current_seconds(self) -> float:
