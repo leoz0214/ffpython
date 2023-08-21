@@ -119,6 +119,7 @@ class PlayProgressBar(tk.Canvas):
         self.drag_seeking = False
         self.drag_fraction = None
         self.bind("<B1-Motion>", self.drag_seek)
+        self.bind("<Button-1>", self.click_seek)
     
     def drag_seek(self, event: tk.Event) -> None:
         "Seeks to a point in the audio by dragging the progress circle."""
@@ -151,6 +152,32 @@ class PlayProgressBar(tk.Canvas):
         self.drag_seeking = False
         self.drag_fraction = None
         self.unbind("<ButtonRelease-1>")
+        self.master.master.master.seek(seek_seconds)
+    
+    def click_seek(self, event: tk.Event) -> None:
+        """Seeks to a given timestamp by clicking on the progress bar."""
+        x = event.x
+        y = event.y
+        if not (
+            PROGRESS_CIRCLE_RADIUS <= x
+                <= PROGRESS_BAR_WIDTH + PROGRESS_CIRCLE_RADIUS
+            and PROGRESS_CIRCLE_RADIUS <= y
+                <= PROGRESS_BAR_WIDTH + PROGRESS_BAR_HEIGHT
+        ):
+            # Did not click on actual progress rectangle.
+            return
+        distance_from_centre = math.hypot(
+            self.circle_mid_x - x, self.circle_mid_y - y)
+        if distance_from_centre < PROGRESS_CIRCLE_RADIUS:
+            # In the circle.
+            return
+        audio = self.master.master.master.current
+        audio.stop()
+        fraction = (
+            x - PROGRESS_CIRCLE_RADIUS * 2) / (
+                PROGRESS_BAR_WIDTH - PROGRESS_CIRCLE_RADIUS)
+        fraction = max(min(fraction, 1), 0)
+        seek_seconds = fraction * audio.duration
         self.master.master.master.seek(seek_seconds)
     
     def display_progress(self, fraction: float) -> None:

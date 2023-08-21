@@ -31,7 +31,6 @@ ALLOWED_EXTENSIONS_DICT = {
 }
 MIN_WIDTH = 400
 MIN_HEIGHT = 300
-SPACEBAR_MIN_DELAY = 0.5
 SEEK_SECONDS = 10
 
 
@@ -49,7 +48,6 @@ class AudioPlayer(tk.Frame):
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         self.current = None
-        self.last_spacebar_input = None
 
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
