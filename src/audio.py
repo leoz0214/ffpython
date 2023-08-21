@@ -133,6 +133,15 @@ class Audio:
         remaining_seconds = self.duration - self.current_seconds
         self.start_time -= min(remaining_seconds, seconds)
     
+    @wait
+    @handle_seek
+    def seek_to(self, seconds: float) -> None:
+        """Seeks to a given timestamp in the audio, ready to be played."""
+        if self.start_time is None:
+            self.start_time = timer() - seconds
+        else:
+            self.start_time += self.current_seconds - seconds
+    
     @property
     def current_seconds(self) -> float:
         """Current time in the audio playback."""

@@ -118,6 +118,8 @@ class AudioPlayer(tk.Frame):
     def play(self, from_seek: bool = False) -> None:
         """Plays the audio. Must be called through a thread."""
         try:
+            # Should not play anything if playing from a seek and virtually
+            # already done.
             if not (
                 from_seek
                 and self.current.current_seconds + 0.5 >= self.current.duration
@@ -177,6 +179,18 @@ class AudioPlayer(tk.Frame):
         self.frame.update_progress(0)
         self.frame.stop_button.config(text="Stop Playback")
         playback_thread = threading.Thread(target=self.play, daemon=True)
+        playback_thread.start()
+    
+    def seek(self, seconds: float) -> None:
+        """Seeks at a given point in the audio."""
+        if self.current.start_time is None:
+            # At end, seeking back into audio, so no longer will be.
+            self.frame.stop_button.config(text="Stop Playback")
+            self.frame.play_controls_frame.paused = False
+            self.frame.play_controls_frame.state_button.set_pause_image()
+        self.current.seek_to(seconds)
+        playback_thread = threading.Thread(
+            target=lambda: self.play(from_seek=True), daemon=True)
         playback_thread.start()
     
     def seek_back(self) -> None:

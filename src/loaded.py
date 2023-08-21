@@ -1,4 +1,5 @@
 """Main handler of the GUI whilst audio is playing."""
+import math
 import tkinter as tk
 from timeit import default_timer as timer
 from typing import Callable, Any
@@ -115,11 +116,48 @@ class PlayProgressBar(tk.Canvas):
             fill=PROGRESS_BAR_REMAINING_COLOUR,
             outline=PROGRESS_BAR_REMAINING_COLOUR)
         self.display_progress(0)
+        self.drag_seeking = False
+        self.drag_fraction = None
+        self.bind("<B1-Motion>", self.drag_seek)
+    
+    def drag_seek(self, event: tk.Event) -> None:
+        "Seeks to a point in the audio by dragging the progress circle."""
+        x = event.x
+        if not self.drag_seeking:
+            # Check if cursor lies in progress circle (radius check).
+            y = event.y
+            distance_from_centre = math.hypot(
+                self.circle_mid_x - x, self.circle_mid_y - y)
+            if distance_from_centre > PROGRESS_CIRCLE_RADIUS:
+                # Not in the circle.
+                return
+            self.drag_seeking = True
+            self.bind("<ButtonRelease-1>", lambda *_: self.drag_release())
+        audio = self.master.master.master.current
+        audio.stop()
+        self.drag_fraction = (
+            x - PROGRESS_CIRCLE_RADIUS * 2) / (
+                PROGRESS_BAR_WIDTH - PROGRESS_CIRCLE_RADIUS)
+        # 0 <= fraction <= 1
+        self.drag_fraction = max(min(self.drag_fraction, 1), 0)
+        seconds = self.drag_fraction * audio.duration
+        self.master.current_time_label.config(text=format_seconds(seconds))
+        self.display_progress(self.drag_fraction)
+    
+    def drag_release(self) -> None:
+        """Drag seek complete - resume audio at that point."""
+        duration = self.master.master.master.current.duration
+        seek_seconds = self.drag_fraction * duration
+        self.drag_seeking = False
+        self.drag_fraction = None
+        self.unbind("<ButtonRelease-1>")
+        self.master.master.master.seek(seek_seconds)
     
     def display_progress(self, fraction: float) -> None:
         """Displays a given fraction of progress in the progress frame."""
         self.delete("progress")
-        fraction = min(fraction, 1)
+        # Safety. Keeps fraction in the range 0 <= fraction <= 1
+        fraction = max(min(fraction, 1), 0)
 
         rect_width = PROGRESS_BAR_WIDTH * fraction
         self.create_rectangle(
@@ -132,15 +170,16 @@ class PlayProgressBar(tk.Canvas):
             activeoutline=PROGRESS_BAR_DONE_COLOURS["activebackground"],
             tags="progress")
 
-        circle_mid_x = (
+        self.circle_mid_x = (
             (PROGRESS_BAR_WIDTH - PROGRESS_CIRCLE_RADIUS) * fraction
             + PROGRESS_CIRCLE_RADIUS * 2)
-        circle_mid_y = (PROGRESS_BAR_HEIGHT + PROGRESS_CIRCLE_RADIUS * 2) / 2
+        self.circle_mid_y = (
+            PROGRESS_BAR_HEIGHT + PROGRESS_CIRCLE_RADIUS * 2) / 2
         self.create_oval(
-            circle_mid_x - PROGRESS_CIRCLE_RADIUS,
-            circle_mid_y - PROGRESS_CIRCLE_RADIUS,
-            circle_mid_x + PROGRESS_CIRCLE_RADIUS,
-            circle_mid_y + PROGRESS_CIRCLE_RADIUS,
+            self.circle_mid_x - PROGRESS_CIRCLE_RADIUS,
+            self.circle_mid_y - PROGRESS_CIRCLE_RADIUS,
+            self.circle_mid_x + PROGRESS_CIRCLE_RADIUS,
+            self.circle_mid_y + PROGRESS_CIRCLE_RADIUS,
             fill=PROGRESS_CIRCLE_COLOURS["background"],
             activefill=PROGRESS_CIRCLE_COLOURS["activebackground"],
             outline=PROGRESS_CIRCLE_COLOURS["outline"], tags="progress")
