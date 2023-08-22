@@ -34,6 +34,7 @@ class LoadedFrame(tk.Frame):
         
         self.play_progress_frame = PlayProgressFrame(self)
         self.play_controls_frame = PlayControlsFrame(self)
+        self.play_looping_frame = PlayLoopingFrame(self)
 
         self.separator2 = HorizontalLine(self, 750)
         
@@ -43,19 +44,22 @@ class LoadedFrame(tk.Frame):
             self, "Stop Playback", font=inter(12), command=master.stop)
         
         self.name_label.grid(row=0, column=0, sticky="w", padx=5, pady=(100, 2))
-        self.file_path_label.grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        self.file_path_label.grid(
+            row=1, column=0, columnspan=2, sticky="w", padx=5, pady=2)
         self.separator.grid(
             row=2, column=0, columnspan=2, sticky="w", padx=5, pady=2)
         self.play_progress_frame.grid(
             row=3, column=0, columnspan=2, padx=5, pady=(25, 5))
         self.play_controls_frame.grid(
             row=4, column=0, columnspan=2, padx=5, pady=(5, 25))
+        self.play_looping_frame.grid(
+            row=5, column=0, padx=5, pady=(25, 5), sticky="w")
         self.separator2.grid(
-            row=5, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+            row=6, column=0, columnspan=2, sticky="w", padx=5, pady=2)
         self.open_file_button.grid(
-            row=6, column=1, sticky="e", padx=(25, 5), pady=5)
-        self.stop_button.grid(
             row=7, column=1, sticky="e", padx=(25, 5), pady=5)
+        self.stop_button.grid(
+            row=8, column=1, sticky="e", padx=(25, 5), pady=5)
     
     def update_progress(self, current_seconds: float) -> None:
         """
@@ -338,3 +342,28 @@ class ArrowSeekButton(Button):
     def on_exit(self) -> None:
         """No longer hovering over the image button."""
         self.config(image=self.image)
+
+
+class PlayLoopingFrame(tk.Frame):
+    """
+    Handles looping, allowing turning looping off, 
+    infinite loops and a fixed number of loops.
+    """
+
+    def __init__(self, master: LoadedFrame) -> None:
+        super().__init__(master)
+        self.loop_image = load_image("loop.png")
+        self.image = tk.Label(self, image=self.loop_image)
+        self.off_button = Button(self, "❌", inter(12), width=2, border=1)
+        self.decrement_button = Button(self, "-", inter(12), width=2)
+        self.count_label = tk.Label(
+            self, font=inter(12), text="OFF", width=4)
+        self.increment_button = Button(self, "+", inter(12), width=2)
+        self.infinite_button = Button(self, "∞", inter(12), width=2, border=1)
+
+        self.image.grid(row=0, column=0, padx=(5, 10), pady=5)
+        self.off_button.grid(row=0, column=1, pady=5)
+        self.decrement_button.grid(row=0, column=2, pady=5)
+        self.count_label.grid(row=0, column=3, pady=5)
+        self.increment_button.grid(row=0, column=4, pady=5)
+        self.infinite_button.grid(row=0, column=5, pady=5)

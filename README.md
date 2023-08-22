@@ -9,3 +9,9 @@ supporting various common file formats including:
 - ogg/oga
 - m4a
 - mp4 (audio only)
+
+Common audio player features are included, such as:
+- Pause/resume
+- Go back/forward n seconds
+- Drag to seek
+- Click to seek
