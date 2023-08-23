@@ -48,6 +48,8 @@ class AudioPlayer(tk.Frame):
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         self.current = None
+        # Looping: None - OFF, int - fixed, inf - forever.
+        self.loops = None
 
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
@@ -134,12 +136,22 @@ class AudioPlayer(tk.Frame):
                 not self.current.paused
                 and self.current.current_seconds + 0.5 >= self.current.duration
             ):
+                # PLAYBACK DONE.
+                # Resets current audio in case of replay.
+                self.current.reset()
+                if self.loops:
+                    # Looping - repeat.
+                    self.replay()
+                    # Be safe - prevent 0 being decremented to -1
+                    # or None raising an error (thread issues).
+                    if self.loops:
+                        self.loops -= 1
+                    self.frame.play_looping_frame.update_display()
+                    return
                 self.frame.stop_button.config(text="Exit Playback")
                 # Make progress 100% to indicate completion.
                 self.frame.update_progress(self.current.duration)
-                # Resets current audio in case of replay.
-                self.current.reset()
-                # Sets 'paused' to None (neither paused not resumed.)
+                # Sets 'paused' to None (neither paused nor resumed).
                 self.frame.play_controls_frame.paused = None
                 # Sets resume image to replay audio if clicked.
                 self.frame.play_controls_frame.state_button.set_resume_image()
@@ -170,6 +182,7 @@ class AudioPlayer(tk.Frame):
             self.root.unbind(f"<{key}>")
         # Stops and returns None, so current becomes None.
         self.current = self.current.stop()
+        self.loops = None
         self.update_state()
     
     def replay(self) -> None:

@@ -8,7 +8,7 @@ import main
 from colours import (
     PROGRESS_BAR_REMAINING_COLOUR, PROGRESS_BAR_DONE_COLOURS,
     PROGRESS_CIRCLE_COLOURS, BG)
-from utils import inter, format_seconds, load_image
+from utils import inter, format_seconds, load_image, bool_to_state
 from widgets import Button, HorizontalLine
 
 
@@ -17,6 +17,7 @@ PROGRESS_CIRCLE_RADIUS = 6
 PROGRESS_BAR_HEIGHT = 6
 STATE_CHANGE_REFRESH_RATE = 0.1
 ARROW_SEEK_CHANGE_REFRESH_RATE = 0.25
+MAX_LOOPS = 99 # Before infinite
 
 
 class LoadedFrame(tk.Frame):
@@ -172,7 +173,7 @@ class PlayProgressBar(tk.Canvas):
             return
         distance_from_centre = math.hypot(
             self.circle_mid_x - x, self.circle_mid_y - y)
-        if distance_from_centre < PROGRESS_CIRCLE_RADIUS:
+        if distance_from_centre <= PROGRESS_CIRCLE_RADIUS:
             # In the circle.
             return
         audio = self.master.master.master.current
@@ -354,12 +355,17 @@ class PlayLoopingFrame(tk.Frame):
         super().__init__(master)
         self.loop_image = load_image("loop.png")
         self.image = tk.Label(self, image=self.loop_image)
-        self.off_button = Button(self, "❌", inter(12), width=2, border=1)
-        self.decrement_button = Button(self, "-", inter(12), width=2)
+        self.off_button = Button(
+            self, "❌", inter(12), width=2, border=1, command=self.off)
+        self.decrement_button = Button(
+            self, "-", inter(12), width=2, command=self.decrement)
         self.count_label = tk.Label(
             self, font=inter(12), text="OFF", width=4)
-        self.increment_button = Button(self, "+", inter(12), width=2)
-        self.infinite_button = Button(self, "∞", inter(12), width=2, border=1)
+        self.increment_button = Button(
+            self, "+", inter(12), width=2, command=self.increment)
+        self.infinite_button = Button(
+            self, "∞", inter(12), width=2, border=1, command=self.infinite)
+        self.update_display()
 
         self.image.grid(row=0, column=0, padx=(5, 10), pady=5)
         self.off_button.grid(row=0, column=1, pady=5)
@@ -367,3 +373,42 @@ class PlayLoopingFrame(tk.Frame):
         self.count_label.grid(row=0, column=3, pady=5)
         self.increment_button.grid(row=0, column=4, pady=5)
         self.infinite_button.grid(row=0, column=5, pady=5)
+    
+    def off(self) -> None:
+        """Turns looping off."""
+        self.master.master.loops = None
+        self.update_display()
+    
+    def decrement(self) -> None:
+        """Removes a loop (-1)."""
+        if self.master.master.loops == float("inf"):
+            # Decrease infinty to the highest allowed finite number.
+            self.master.master.loops = MAX_LOOPS
+        else:
+            self.master.master.loops -= 1
+        self.update_display()
+
+    def increment(self) -> None:
+        """Adds a loop (+1)."""
+        self.master.master.loops = (self.master.master.loops or 0) + 1
+        if self.master.master.loops > MAX_LOOPS:
+            # Increase highest allowed finite number to infinity.
+            self.master.master.loops = float("inf")
+        self.update_display()
+    
+    def infinite(self) -> None:
+        """Sets looping to infinite (forever)."""
+        self.master.master.loops = float("inf")
+        self.update_display()
+
+    def update_display(self) -> None:
+        """Updates display and button states."""
+        loops = self.master.master.loops
+        # None -> OFF, inf -> ∞, otherwise display number of loops.
+        display = {None: "OFF", float("inf"): "∞"}.get(loops, str(loops))
+        self.count_label.config(text=display)
+        self.off_button.config(state=bool_to_state(loops is not None))
+        self.decrement_button.config(state=bool_to_state(bool(loops)))
+        is_infinite = loops == float("inf")
+        self.increment_button.config(state=bool_to_state(not is_infinite))
+        self.infinite_button.config(state=bool_to_state(not is_infinite))

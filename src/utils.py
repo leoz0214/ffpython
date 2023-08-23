@@ -60,3 +60,8 @@ def load_image(image_name: str) -> ImageTk.PhotoImage:
     """Loads an image from a given file name, ready to be displayed."""
     image_file_path = IMAGES_FOLDER / image_name
     return ImageTk.PhotoImage(file=image_file_path)
+
+
+def bool_to_state(expression: bool) -> str:
+    """Returns 'normal' if True, else 'disabled'."""
+    return "normal" if expression else "disabled"

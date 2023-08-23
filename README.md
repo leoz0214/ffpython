@@ -15,3 +15,4 @@ Common audio player features are included, such as:
 - Go back/forward n seconds
 - Drag to seek
 - Click to seek
+- Finite/infinite looping.

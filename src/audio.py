@@ -20,7 +20,6 @@ class Audio:
     """
     Represents an audio object in the app, providing key information
     Such as file path, name and metadata including duration.
-
     Also allows the audio to be played, paused, stopped, sought etc.
     """
 

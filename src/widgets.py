@@ -14,15 +14,19 @@ class Button(tk.Button):
         width: int = 15, border: int = 0,
         bg: str = BUTTON_COLOURS["background"],
         activebg: str = BUTTON_COLOURS["activebackground"],
-        command: Callable = lambda: None, cursor: str = "hand2", **kwargs
+        command: Callable = lambda: None, cursor: str = "hand2",
+        disabled_cursor: str = "X_cursor", **kwargs
     ) -> None:
         super().__init__(
             master, text=text, font=font, width=width, border=border,
             command=command, bg=bg, activebackground=activebg,
-            cursor=cursor, **kwargs)
+            **kwargs)
         self.normal_bg = bg
+        self.normal_cursor = cursor
+        self.disabled_cursor = disabled_cursor
         self.bind("<Enter>", lambda *_: self.on_enter())
         self.bind("<Leave>", lambda *_: self.on_exit())
+        self.update_cursor()
     
     def on_enter(self) -> None:
         """Hovering over the button."""
@@ -31,6 +35,18 @@ class Button(tk.Button):
     def on_exit(self) -> None:
         """No longer hovering over the button."""
         self.config(bg=self.normal_bg)
+    
+    def config(self, *args, **kwargs) -> None:
+        """Config wrapper."""
+        super().config(*args, **kwargs)
+        self.update_cursor()
+    
+    def update_cursor(self) -> None:
+        """Changes cursor depending on state."""
+        cursor = (
+            self.normal_cursor if self["state"] == "normal"
+            else self.disabled_cursor)
+        super().config(self, cursor=cursor)
 
 
 class HorizontalLine(tk.Canvas):
