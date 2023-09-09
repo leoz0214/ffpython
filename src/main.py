@@ -8,6 +8,7 @@ from tkinter import messagebox
 
 import idle
 import loaded
+import sys
 from audio import load_audio
 from colours import FG, BG
 
@@ -155,6 +156,8 @@ class AudioPlayer(tk.Frame):
                 self.frame.play_controls_frame.paused = None
                 # Sets resume image to replay audio if clicked.
                 self.frame.play_controls_frame.state_button.set_resume_image()
+                # Set the state update in menu as 'Replay'.
+                self.frame.menu.change_state()
         except Exception as e:
             if self.current is None:
                 # Already stopped prematurely.
@@ -192,13 +195,21 @@ class AudioPlayer(tk.Frame):
         playback_thread = threading.Thread(target=self.play, daemon=True)
         playback_thread.start()
     
+    def seek_after_end(self) -> None:
+        """
+        Method to update the state whenever playback has reached the en
+        but the user seeks backs into the audio, so will no longer
+        be at the end.
+        """
+        self.frame.stop_button.config(text="Stop Playback")
+        self.frame.play_controls_frame.paused = False
+        self.frame.play_controls_frame.state_button.set_pause_image()
+        self.frame.menu.change_state()
+
     def seek(self, seconds: float) -> None:
         """Seeks at a given point in the audio."""
         if self.current.start_time is None:
-            # At end, seeking back into audio, so no longer will be.
-            self.frame.stop_button.config(text="Stop Playback")
-            self.frame.play_controls_frame.paused = False
-            self.frame.play_controls_frame.state_button.set_pause_image()
+            self.seek_after_end()
         self.current.seek_to(seconds)
         playback_thread = threading.Thread(
             target=lambda: self.play(from_seek=True), daemon=True)
@@ -207,10 +218,7 @@ class AudioPlayer(tk.Frame):
     def seek_back(self) -> None:
         """Seeks back in the audio."""
         if self.current.start_time is None:
-            # At end, seeking back, so no longer will be.
-            self.frame.stop_button.config(text="Stop Playback")
-            self.frame.play_controls_frame.paused = False
-            self.frame.play_controls_frame.state_button.set_pause_image()
+            self.seek_after_end()
         if self.current.paused:
             self.frame.play_controls_frame.change_state(forced=True)
         self.current.seek_back(SEEK_SECONDS)
@@ -235,9 +243,15 @@ def main() -> None:
     """Main procedure of the program."""
     root = tk.Tk()
     root.tk_setPalette(foreground=FG, background=BG)
+    root.protocol("WM_DELETE_WINDOW", quit_app)
     audio_player = AudioPlayer(root)
     audio_player.pack()
     root.mainloop()
+
+
+def quit_app() -> None:
+    """Performs required cleanup and gracefully terminates the app."""
+    sys.exit(0)
 
 
 if __name__ == "__main__":

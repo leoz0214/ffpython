@@ -44,6 +44,8 @@ class LoadedFrame(tk.Frame):
         self.stop_button = Button(
             self, "Stop Playback", font=inter(12), command=master.stop)
         
+        self.menu = LoadedMenu(self)
+        
         self.name_label.grid(row=0, column=0, sticky="w", padx=5, pady=(100, 2))
         self.file_path_label.grid(
             row=1, column=0, columnspan=2, sticky="w", padx=5, pady=2)
@@ -61,6 +63,8 @@ class LoadedFrame(tk.Frame):
             row=7, column=1, sticky="e", padx=(25, 5), pady=5)
         self.stop_button.grid(
             row=8, column=1, sticky="e", padx=(25, 5), pady=5)
+        
+        master.root.config(menu=self.menu)
     
     def update_progress(self, current_seconds: float) -> None:
         """
@@ -72,6 +76,57 @@ class LoadedFrame(tk.Frame):
             text=format_seconds(min(duration, current_seconds)))
         progress = current_seconds / duration
         self.play_progress_frame.progress_bar.display_progress(progress)
+
+
+class LoadedMenu(tk.Menu):
+    """Toplevel menu for when the audio is loaded."""
+
+    def __init__(self, master: LoadedFrame) -> None:
+        super().__init__(master)
+        self.file_menu = tk.Menu(self, tearoff=False)
+        self.file_menu.add_command(
+            label="Open (Ctrl+O)", font=inter(12), command=master.master.open)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(
+            label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+        self.add_cascade(label="File", menu=self.file_menu)
+
+        self.playback_menu = tk.Menu(self, tearoff=False)
+        self.playback_menu.add_command(
+            label="Pause (space)", font=inter(12),
+            command=lambda: self.change_state(True))
+        self.playback_menu.add_separator()
+        self.playback_menu.add_command(
+            label="Seek Back (←)", font=inter(12),
+            command=self.master.play_controls_frame.seek_back)
+        self.playback_menu.add_command(
+            label="Seek Forward (→)", font=inter(12),
+            command=self.master.play_controls_frame.seek_forward)
+        self.playback_menu.add_separator()
+        self.playback_menu.add_command(
+            label="Stop Playback", font=inter(12), command=master.master.stop)
+        self.add_cascade(label="Playback", menu=self.playback_menu)
+    
+    def change_state(self, from_menu: bool = False) -> None:
+        """
+        Changes state if invoked from the menu,
+        and then updates the command name pause/resume/replay
+        based on the current playback state.
+        """
+        if from_menu:
+            self.master.play_controls_frame.change_state()
+        paused = self.master.play_controls_frame.paused
+        change_state_label = {
+            True: "Resume",
+            False: "Pause",
+            None: "Replay"
+        }[paused] + " (space)"
+        self.playback_menu.entryconfig(0, label=change_state_label)
+        # Can only seek forward if playback not complete.
+        self.playback_menu.entryconfig(
+            3, state=bool_to_state(paused is not None))
+        self.playback_menu.entryconfig(
+            5, label=f"{'Exit' if paused is None else 'Stop'} Playback")
 
 
 class PlayProgressFrame(tk.Frame):
@@ -243,7 +298,7 @@ class PlayControlsFrame(tk.Frame):
             def wrapper(self: "PlayControlsFrame", forced: bool = False) -> Any:
                 timestamp = timer()
                 if (
-                    not forced and self.last_change is not None
+                    (not forced) and self.last_change is not None
                     and timestamp - self.last_change < delay
                 ):
                     return
@@ -260,16 +315,17 @@ class PlayControlsFrame(tk.Frame):
             self.master.master.replay()
             self.state_button.set_pause_image()
             self.paused = False
-            return
-        if self.paused:
-            # Paused, so now resume.
-            self.master.master.resume()
-            self.state_button.set_pause_image()
         else:
-            # Playing, so now pause.
-            self.master.master.pause()
-            self.state_button.set_resume_image()
-        self.paused = not self.paused
+            if self.paused:
+                # Paused, so now resume.
+                self.master.master.resume()
+                self.state_button.set_pause_image()
+            else:
+                # Playing, so now pause.
+                self.master.master.pause()
+                self.state_button.set_resume_image()
+            self.paused = not self.paused
+        self.master.menu.change_state()
     
     @change(ARROW_SEEK_CHANGE_REFRESH_RATE)
     def seek_back(self) -> None:
