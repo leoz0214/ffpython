@@ -2,7 +2,8 @@
 import tkinter as tk
 from typing import Callable
 
-from colours import BUTTON_COLOURS, LINE_COLOURS
+from colours import (
+    BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS)
 from utils import inter
 
 
@@ -74,3 +75,79 @@ class HorizontalLine(tk.Canvas):
     def on_exit(self) -> None:
         """No longer hovering over the line."""
         self.config(bg=self.colour)
+
+
+class StringEntry(tk.Entry):
+    """String entry convenience class."""
+
+    def __init__(
+        self, master: tk.Frame, font: tuple = inter(15),
+        bg: str = ENTRY_COLOURS["background"],
+        width: int = 32, max_length: int = 256, initial_value: str = ""
+    ) -> None:
+        self.variable = tk.StringVar(value=initial_value)
+        self.variable.trace("w", lambda *_: self.validate())
+        self.max_length = max_length
+        super().__init__(
+            master, font=font, bg=bg, width=width, textvariable=self.variable)
+    
+    def validate(self) -> None:
+        """Performs length validation on the string."""
+        self.variable.set(self.variable.get()[:self.max_length])
+
+
+class Textbox(tk.Frame):
+    """Textbox convenience class, including support for scrollbars."""
+
+    def __init__(
+        self, master: tk.Frame, font: tuple = inter(11),
+        bg: str = TEXTBOX_COLOURS["background"],
+        width: int = 64, height: int = 16, max_length: int = 4096,
+        vertical_scrollbar: bool = True, horizontal_scrollbar: bool = False,
+        wrap: str = "word"
+    ):
+        super().__init__(master)
+        self.max_length = max_length
+        self.previous_text = ""
+        self.textbox = tk.Text(
+            self, font=font, bg=bg, width=width, height=height, wrap=wrap)
+        self.textbox.grid(row=0, column=0)
+
+        if vertical_scrollbar:
+            self.vertical_scrollbar = tk.Scrollbar(
+                self, orient="vertical", command=self.textbox.yview)
+            self.textbox.config(yscrollcommand=self.vertical_scrollbar.set)
+            self.vertical_scrollbar.grid(row=0, column=1, sticky="ns")
+        if horizontal_scrollbar:
+            self.horizontal_scrollbar = tk.Scrollbar(
+                self, orient="horizontal", command=self.textbox.xview)
+            self.textbox.config(xscrollcommand=self.horizontal_scrollbar.set)
+            self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        self.after(500, self.validate)
+
+    @property
+    def text(self) -> str:
+        """Returns the current text."""
+        # Slice off trailing new line.
+        return self.textbox.get("1.0", "end")[:-1]
+
+    @property
+    def is_valid(self) -> bool:
+        return len(self.text) <= self.max_length
+    
+    def validate(self) -> None:
+        """Validates the current text input."""
+        current_text = self.text
+        if len(current_text) > self.max_length:
+            # Force trim excess text to remain in length range.
+            trimmed = current_text[:self.max_length]
+            self.textbox.replace("1.0", "end", trimmed)
+            self.previous_text = trimmed
+        elif current_text != self.previous_text:
+            # Updates text only when it has changed, saving
+            # processing power.
+            self.textbox.replace("1.0", "end", current_text)
+            self.previous_text = current_text
+        # Keep on validating at regular intervals.
+        self.after(500, self.validate)

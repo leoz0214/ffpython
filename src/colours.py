@@ -22,3 +22,9 @@ PROGRESS_CIRCLE_COLOURS = {
     "activebackground": "#ffae00",
     "outline": "#ffffff"
 }
+ENTRY_COLOURS = {
+    "background": "#24bf77"
+}
+TEXTBOX_COLOURS = {
+    "background": "#24bf77"
+}

@@ -1,4 +1,5 @@
 """Main module of the app."""
+import sys
 import threading
 import time
 import tkinter as tk
@@ -8,12 +9,12 @@ from tkinter import messagebox
 
 import idle
 import loaded
-import sys
+import playlists
 from audio import load_audio
 from colours import FG, BG
 
 
-TITLE = "FFPython"
+DEFAULT_TITLE = "FFPython"
 ALLOWED_EXTENSIONS = (
     ".mp3",
     ".wav",
@@ -45,7 +46,7 @@ class AudioPlayer(tk.Frame):
         super().__init__(root)
         self.root = root
         self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
-        self.root.title(TITLE)
+        self.root.title(DEFAULT_TITLE)
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         self.current = None
@@ -105,15 +106,18 @@ class AudioPlayer(tk.Frame):
         playback_thread = threading.Thread(target=self.play, daemon=True)
         playback_thread.start()
     
-    def update_state(self) -> None:
+    def update_state(self, frame: tk.Frame | None = None) -> None:
         """
-        Moves to idle frame if no audio is loaded, 
+        Moves to a given frame, or to the idle frame if no audio is loaded,
         or else, displays the main frame.
         """
         self.frame.destroy()
-        self.frame = (
-            idle.IdleFrame if self.current is None else loaded.LoadedFrame
-        )(self)
+        if frame is not None:
+            self.frame = frame(self)
+        else:
+            self.frame = (
+                idle.IdleFrame if self.current is None else loaded.LoadedFrame
+            )(self)
         self.frame.pack(padx=25, pady=25)
 
     def play(self, from_seek: bool = False) -> None:
@@ -178,7 +182,7 @@ class AudioPlayer(tk.Frame):
         playback_thread = threading.Thread(target=self.play, daemon=True)
         playback_thread.start()
     
-    def stop(self) -> None:
+    def stop(self, update_state: bool = True) -> None:
         """Terminates audio playback."""
         # Unbinds audio playback control keys.
         for key in ("space", "Left", "Right"):
@@ -186,7 +190,8 @@ class AudioPlayer(tk.Frame):
         # Stops and returns None, so current becomes None.
         self.current = self.current.stop()
         self.loops = None
-        self.update_state()
+        if update_state:
+            self.update_state()
     
     def replay(self) -> None:
         """Replays the audio."""
@@ -236,7 +241,14 @@ class AudioPlayer(tk.Frame):
         self.current.seek_forward(SEEK_SECONDS)
         playback_thread = threading.Thread(
             target=lambda: self.play(from_seek=True), daemon=True)
-        playback_thread.start()   
+        playback_thread.start()
+    
+    def create_playlist(self) -> None:
+        """Navigate to the playlist creation part of the app."""
+        if self.current is not None:
+            # Stop current playback first.
+            self.stop()
+        self.update_state(playlists.CreatePlaylist)
 
 
 def main() -> None:

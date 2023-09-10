@@ -160,9 +160,14 @@ def load_audio(file_path: str) -> Audio:
         "ffprobe", "-print_format", "json", 
         "-show_format", "-show_streams", file_path)
     # Run the command and load the JSON string.
-    json_data = json.loads(
-        subprocess.check_output(
-            commands, creationflags=subprocess.CREATE_NO_WINDOW).decode())
+    try:
+        json_data = json.loads(
+            subprocess.check_output(
+                commands, creationflags=subprocess.CREATE_NO_WINDOW).decode())
+    except subprocess.CalledProcessError:
+        raise Exception(
+            "Unable to obtain audio data. Are you sure you have ffprobe "
+            "installed, and that the audio file is valid?")
 
     try:
         duration = float(json_data["format"]["duration"])

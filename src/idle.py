@@ -11,6 +11,7 @@ class IdleFrame(tk.Frame):
     
     def __init__(self, master: main.AudioPlayer) -> None:
         super().__init__(master)
+        master.root.title(main.DEFAULT_TITLE)
         self.menu = IdleMenu(self)
         self.open_file_button = Button(
             self, "Open File", font=inter(25), command=master.open)
@@ -29,5 +30,10 @@ class IdleMenu(tk.Menu):
         self.file_menu.add_separator()
         self.file_menu.add_command(
             label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+        self.add_cascade(label="File", menu=self.file_menu)
 
-        self.add_cascade(label="File", font=inter(12), menu=self.file_menu)
+        self.playlists_menu = tk.Menu(self, tearoff=False)
+        self.playlists_menu.add_command(
+            label="Create", font=inter(12),
+            command=master.master.create_playlist)
+        self.add_cascade(label="Playlists", menu=self.playlists_menu)
