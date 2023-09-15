@@ -1,5 +1,7 @@
 """Utilities for the program."""
 import pathlib
+from tkinter import filedialog
+from tkinter import messagebox
 
 import pyglet
 from PIL import ImageTk
@@ -16,6 +18,23 @@ pyglet.font.add_file(str(FONT_FOLDER / "Inter.ttf"))
 # Maximum lengths to display in the GUI.
 MAX_AUDIO_NAME_DISPLAY_LENGTH = 24
 MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH = 64
+
+ALLOWED_EXTENSIONS = (
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".oga",
+    ".m4a",
+    ".mp4"
+)
+ALLOWED_EXTENSIONS_DICT = {
+    ".mp3": "MP3",
+    ".wav": "WAV",
+    ".ogg": "OGG",
+    ".oga": "OGG",
+    ".m4a": "M4A",
+    ".mp4": "MP4 (Audio only)"
+}
 
 
 def inter(size: int, bold: bool = False, italic: bool = False) -> tuple:
@@ -65,3 +84,29 @@ def load_image(image_name: str) -> ImageTk.PhotoImage:
 def bool_to_state(expression: bool) -> str:
     """Returns 'normal' if True, else 'disabled'."""
     return "normal" if expression else "disabled"
+
+
+def open_audio_file() -> str | None:
+    """
+    Prompts the user for an audio,
+    returns the path or None if invalid or cancelled.
+    """
+    file_path = filedialog.askopenfilename(
+        filetypes=(
+            *(("Audio", extension) for extension in ALLOWED_EXTENSIONS),
+            *(
+                (name, extension)
+                for extension, name in ALLOWED_EXTENSIONS_DICT.items())))
+    if not file_path:
+        # Cancelled.
+        return None
+    if not any(
+        file_path.endswith(extension) for extension in ALLOWED_EXTENSIONS
+    ):
+        # Bypassed file extension filter, not allowed.
+        messagebox.showerror(
+            "Error",
+                "Invalid file provided - "
+                "the file extension is not supported.")
+        return None
+    return file_path

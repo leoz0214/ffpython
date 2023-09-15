@@ -28,3 +28,6 @@ ENTRY_COLOURS = {
 TEXTBOX_COLOURS = {
     "background": "#24bf77"
 }
+LISTBOX_COLOURS = {
+    "background": "#24bf77"
+}

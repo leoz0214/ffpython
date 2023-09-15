@@ -4,7 +4,6 @@ import threading
 import time
 import tkinter as tk
 from contextlib import suppress
-from tkinter import filedialog
 from tkinter import messagebox
 
 import idle
@@ -12,25 +11,10 @@ import loaded
 import playlists
 from audio import load_audio
 from colours import FG, BG
+from utils import open_audio_file
 
 
 DEFAULT_TITLE = "FFPython"
-ALLOWED_EXTENSIONS = (
-    ".mp3",
-    ".wav",
-    ".ogg",
-    ".oga",
-    ".m4a",
-    ".mp4"
-)
-ALLOWED_EXTENSIONS_DICT = {
-    ".mp3": "MP3",
-    ".wav": "WAV",
-    ".ogg": "OGG",
-    ".oga": "OGG",
-    ".m4a": "M4A",
-    ".mp4": "MP4 (Audio only)"
-}
 MIN_WIDTH = 400
 MIN_HEIGHT = 300
 SEEK_SECONDS = 10
@@ -58,23 +42,8 @@ class AudioPlayer(tk.Frame):
     
     def open(self) -> None:
         """Opens an audio file in the GUI."""
-        file_path = filedialog.askopenfilename(
-            filetypes=(
-                *(("Audio", extension) for extension in ALLOWED_EXTENSIONS),
-                *(
-                    (name, extension)
-                    for extension, name in ALLOWED_EXTENSIONS_DICT.items())))
-        if not file_path:
-            # Cancelled.
-            return
-        if not any(
-            file_path.endswith(extension) for extension in ALLOWED_EXTENSIONS
-        ):
-            # Bypassed file extension filter, not allowed.
-            messagebox.showerror(
-                "Error",
-                    "Invalid file provided - "
-                    "the file extension is not supported.")
+        file_path = open_audio_file()
+        if file_path is None:
             return
 
         if self.current is not None:

@@ -3,7 +3,9 @@ import tkinter as tk
 from typing import Callable
 
 from colours import (
-    BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS)
+    BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS,
+    LISTBOX_COLOURS
+)
 from utils import inter
 
 
@@ -151,3 +153,33 @@ class Textbox(tk.Frame):
             self.previous_text = current_text
         # Keep on validating at regular intervals.
         self.after(500, self.validate)
+
+
+class Listbox(tk.Frame):
+    """Listbox convenience wrapper, including scrollbar support."""
+
+    def __init__(
+        self, master: tk.Frame, font: tuple = inter(11),
+        bg: str = LISTBOX_COLOURS["background"], width: int = 64,
+        height: int = 16, vertical_scrollbar: bool = True,
+        horizontal_scrollbar: bool = False
+    ):
+        super().__init__(master)
+        self.listbox = tk.Listbox(
+            self, font=font, bg=bg, width=width, height=height)
+        self.listbox.grid(row=0, column=0)
+
+        if vertical_scrollbar:
+            self.vertical_scrollbar = tk.Scrollbar(
+                self, orient="vertical", command=self.listbox.yview)
+            self.listbox.config(yscrollcommand=self.vertical_scrollbar.set)
+            self.vertical_scrollbar.grid(row=0, column=1, sticky="ns")
+        if horizontal_scrollbar:
+            self.horizontal_scrollbar = tk.Scrollbar(
+                self, orient="horizontal", command=self.listbox.xview)
+            self.listbox.config(xscrollcommand=self.horizontal_scrollbar.set)
+            self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew") 
+
+    def append(self, text: str) -> None:
+        """Appends a value."""
+        self.listbox.insert("end", text)

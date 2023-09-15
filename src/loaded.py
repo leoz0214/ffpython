@@ -26,7 +26,8 @@ class LoadedFrame(tk.Frame):
     def __init__(self, master: "main.AudioPlayer") -> None:
         super().__init__(master)
         audio = master.current
-        master.root.title(f"{main.DEFAULT_TITLE} - {audio.name_display}")
+        master.root.title(
+            f"{main.DEFAULT_TITLE} - Playback - {audio.name_display}")
         self.name_label = tk.Label(
             self, font=inter(25, True), text=audio.name_display)
         self.file_path_label = tk.Label(
