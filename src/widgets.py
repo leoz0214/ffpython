@@ -83,15 +83,17 @@ class StringEntry(tk.Entry):
     """String entry convenience class."""
 
     def __init__(
-        self, master: tk.Frame, font: tuple = inter(15),
+        self, master: tk.Widget, font: tuple = inter(15),
         bg: str = ENTRY_COLOURS["background"],
-        width: int = 32, max_length: int = 256, initial_value: str = ""
+        width: int = 32, max_length: int = 256, initial_value: str = "",
+        **kwargs
     ) -> None:
         self.variable = tk.StringVar(value=initial_value)
         self.variable.trace("w", lambda *_: self.validate())
         self.max_length = max_length
         super().__init__(
-            master, font=font, bg=bg, width=width, textvariable=self.variable)
+            master, font=font, bg=bg, width=width, textvariable=self.variable,
+            **kwargs)
     
     def validate(self) -> None:
         """Performs length validation on the string."""
@@ -102,7 +104,7 @@ class Textbox(tk.Frame):
     """Textbox convenience class, including support for scrollbars."""
 
     def __init__(
-        self, master: tk.Frame, font: tuple = inter(11),
+        self, master: tk.Widget, font: tuple = inter(11),
         bg: str = TEXTBOX_COLOURS["background"],
         width: int = 64, height: int = 16, max_length: int = 4096,
         vertical_scrollbar: bool = True, horizontal_scrollbar: bool = False,
@@ -159,7 +161,7 @@ class Listbox(tk.Frame):
     """Listbox convenience wrapper, including scrollbar support."""
 
     def __init__(
-        self, master: tk.Frame, font: tuple = inter(11),
+        self, master: tk.Widget, font: tuple = inter(11),
         bg: str = LISTBOX_COLOURS["background"], width: int = 64,
         height: int = 16, vertical_scrollbar: bool = True,
         horizontal_scrollbar: bool = False

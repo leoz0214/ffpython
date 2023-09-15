@@ -31,3 +31,6 @@ TEXTBOX_COLOURS = {
 LISTBOX_COLOURS = {
     "background": "#24bf77"
 }
+CHECKBUTTON_COLOURS = {
+    "background": "#24bf77"
+}
