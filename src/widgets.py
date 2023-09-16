@@ -1,6 +1,6 @@
 """Custom widgets to use in the app, extended from Tkinter widgets."""
 import tkinter as tk
-from typing import Callable
+from typing import Callable, Iterable
 
 from colours import (
     BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS,
@@ -95,6 +95,10 @@ class StringEntry(tk.Entry):
             master, font=font, bg=bg, width=width, textvariable=self.variable,
             **kwargs)
     
+    @property
+    def value(self) -> str:
+        return self.variable.get()
+    
     def validate(self) -> None:
         """Performs length validation on the string."""
         self.variable.set(self.variable.get()[:self.max_length])
@@ -185,3 +189,7 @@ class Listbox(tk.Frame):
     def append(self, text: str) -> None:
         """Appends a value."""
         self.listbox.insert("end", text)
+
+    def extend(self, iterable: Iterable[str]) -> None:
+        """Adds multiple valus."""
+        self.listbox.insert("end", *iterable)

@@ -34,3 +34,6 @@ LISTBOX_COLOURS = {
 CHECKBUTTON_COLOURS = {
     "background": "#24bf77"
 }
+RADIOBUTTON_COLOURS = {
+    "background": "#24bf77"
+}
