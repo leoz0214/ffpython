@@ -45,6 +45,9 @@ class Audio:
     
     def play(self, seek: float = 0) -> None:
         """Begins or resumes audio playback."""
+        # In case the file is deleted during playback.
+        if not pathlib.Path(self.file_path).is_file():
+            raise FileNotFoundError("The loaded file no longer exists.")
         command = (
             "ffplay", self.file_path, "-nodisp",
             "-autoexit", "-vn", "-ss", str(seek))
@@ -52,9 +55,10 @@ class Audio:
         self.handling_process = True
         self.process = subprocess.Popen(
             command, creationflags=subprocess.CREATE_NO_WINDOW)
-        # Gives some time for audio to start. Due to subprocess.
-        # Does not need to be perfect, just reasonable.
-        time.sleep(0.5)
+        initial_memory_usage = self.memory_usage
+        # Wait until process 'begins' - spike in memory usage.
+        while self.memory_usage <= initial_memory_usage:
+            time.sleep(0.05)
         if self.start_time is None:
             self.start_time = timer()
         self.handling_process = False
@@ -151,6 +155,18 @@ class Audio:
     @property
     def is_playing(self) -> bool:
         return self.process is not None and self.process.poll() is None
+    
+    @property
+    def memory_usage(self) -> int:
+        """Current number of Kilobytes used by the process."""
+        if not self.process:
+            return 0
+        # Identifies the PID and gets task info, with memory info included.
+        command = ("tasklist", "/fi", f"pid eq {self.process.pid}")
+        # Runs the command and fetches the output as a string.
+        output = subprocess.check_output(command).decode()
+        # Parses the output string for the memory usage in KB.
+        return int(output.removesuffix(" K\r\n").split()[-1].replace(",", ""))
 
 
 def load_audio(file_path: str) -> Audio:
@@ -163,11 +179,14 @@ def load_audio(file_path: str) -> Audio:
     try:
         json_data = json.loads(
             subprocess.check_output(
-                commands, creationflags=subprocess.CREATE_NO_WINDOW).decode())
+                commands, creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=30).decode())
     except subprocess.CalledProcessError:
         raise Exception(
             "Unable to obtain audio data. Are you sure you have ffprobe "
             "installed, and that the audio file is valid?")
+    except subprocess.TimeoutExpired:
+        raise Exception("Timeout while trying to fetch audio metadata.")
 
     try:
         duration = float(json_data["format"]["duration"])
