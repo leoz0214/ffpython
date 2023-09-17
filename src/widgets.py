@@ -184,12 +184,40 @@ class Listbox(tk.Frame):
             self.horizontal_scrollbar = tk.Scrollbar(
                 self, orient="horizontal", command=self.listbox.xview)
             self.listbox.config(xscrollcommand=self.horizontal_scrollbar.set)
-            self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew") 
+            self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
+    
+    @property
+    def current_index(self) -> int | None:
+        """Currently selected index."""
+        # Returns first selected index or None otherwise.
+        return (self.listbox.curselection() or (None,))[0]
+    
+    @property
+    def size(self) -> int:
+        """Number of items in the listbox."""
+        return self.listbox.size()
 
     def append(self, text: str) -> None:
         """Appends a value."""
         self.listbox.insert("end", text)
 
     def extend(self, iterable: Iterable[str]) -> None:
-        """Adds multiple valus."""
+        """Adds multiple values."""
         self.listbox.insert("end", *iterable)
+    
+    def pop(self, index: int) -> None:
+        """Removes the element at the given index."""
+        self.listbox.delete(index)
+    
+    def swap(
+        self, index1: int, index2: int, keep_select: bool = True
+    ) -> None:
+        """Swaps 2 values at given indexes."""
+        index1_text = self.listbox.get(index1)
+        index2_text = self.listbox.get(index2)
+        self.listbox.delete(index1)
+        self.listbox.insert(index1, index2_text)
+        self.listbox.delete(index2)
+        self.listbox.insert(index2, index1_text)
+        if keep_select:
+            self.listbox.select_set(index2)

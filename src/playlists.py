@@ -32,11 +32,13 @@ class CreatePlaylist(tk.Frame):
         self.metadata_frame = CreatePlaylistMetadataFrame(self)
         self.separator = HorizontalLine(self, width=750)
         self.audio_frame = CreatePlaylistAudioFrame(self)
+        self.separator2 = HorizontalLine(self, width=750)
 
-        self.title.pack(padx=10, pady=5)
-        self.metadata_frame.pack(padx=10, pady=5)
-        self.separator.pack(padx=10, pady=5)
-        self.audio_frame.pack(padx=10, pady=5)
+        self.title.pack(padx=10, pady=3)
+        self.metadata_frame.pack(padx=10, pady=3)
+        self.separator.pack(padx=10, pady=3)
+        self.audio_frame.pack(padx=10, pady=3)
+        self.separator2.pack(padx=10, pady=3)
 
 
 class CreatePlaylistMetadataFrame(tk.Frame):
@@ -68,15 +70,23 @@ class CreatePlaylistAudioFrame(tk.Frame):
 
     def __init__(self, master: CreatePlaylist) -> None:
         super().__init__(master)
-        self.listbox = CreatePlaylistListbox(self)
+        self.listbox = Listbox(self, height=10, horizontal_scrollbar=True)
         self.add_file_button = Button(self, "Add File", command=self.add_file)
         self.import_folder_button = Button(
             self, "Import Folder", command=self.import_folder)
+        self.file_handling_frame = FileHandlingFrame(self)
+        self.file_count_label = tk.Label(self, font=inter(20), text="Files: 0")
         self.files = []
+        self.listbox.listbox.bind(
+            "<<ListboxSelect>>",
+            lambda *_: self.file_handling_frame.update_state())
         
         self.listbox.grid(row=0, column=0, padx=10, pady=5, columnspan=2)
-        self.add_file_button.grid(row=1, column=0, pady=5)
-        self.import_folder_button.grid(row=1, column=1, pady=5)
+        self.add_file_button.grid(row=1, column=0, padx=10, pady=5, sticky="e")
+        self.import_folder_button.grid(
+            row=1, column=1, padx=10, pady=5, sticky="w")
+        self.file_handling_frame.grid(row=0, column=2)
+        self.file_count_label.grid(row=1, column=2, padx=(10, 0), sticky="w")
     
     @staticmethod
     def check_playlist_length(method: Callable) -> None:
@@ -103,18 +113,16 @@ class CreatePlaylistAudioFrame(tk.Frame):
             return
         self.files.append(file_path)
         self.listbox.append(file_path)
+        self.update_file_count_label()
     
     @check_playlist_length
     def import_folder(self) -> None:
         """Gateway to the import folder toplevel."""
         ImportFolderToplevel(self)
-
-
-class CreatePlaylistListbox(Listbox):
-    """Holds the list of audio files in the playlist."""
-
-    def __init__(self, master: CreatePlaylistAudioFrame) -> None:
-        super().__init__(master, height=10, horizontal_scrollbar=True)
+    
+    def update_file_count_label(self) -> None:
+        """Updates the file count display."""
+        self.file_count_label.config(text=f"Files: {len(self.files)}")
 
 
 class ImportFolderToplevel(tk.Toplevel):
@@ -217,6 +225,7 @@ class ImportFolderToplevel(tk.Toplevel):
             return
         self.master.files.extend(new)
         self.master.listbox.extend(new)
+        self.master.update_file_count_label()
         settings = {"extensions": extensions, "recursive": is_recursive}
         update_import_folder_settings(settings)
         self.destroy()
@@ -298,3 +307,61 @@ class SearchScopeFrame(tk.Frame):
     @property
     def recursive(self) -> bool:
         return self.recusive_variable.get()
+
+
+class FileHandlingFrame(tk.Frame):
+    """
+    Functionality to allow the user to delete an audio file
+    in the playlist or move it up or down.
+    """
+
+    def __init__(self, master: CreatePlaylistAudioFrame) -> None:
+        super().__init__(master)
+        self.delete_button = Button(
+            self, "Delete", inter(12), command=self.delete)
+        self.move_up_button = Button(
+            self, "Move Up", inter(12), command=lambda: self.swap(-1))
+        self.move_down_button = Button(
+            self, "Move Down", inter(12), command=lambda: self.swap(+1))
+        self.update_state()
+
+        self.delete_button.pack(padx=10, pady=5)
+        self.move_up_button.pack(padx=10, pady=5)
+        self.move_down_button.pack(padx=10, pady=5)
+    
+    def delete(self) -> None:
+        """Removes the currently selected file from the playlist."""
+        index = self.master.listbox.current_index
+        self.master.files.pop(index)
+        self.master.listbox.pop(index)
+        if index < self.master.listbox.size:
+            self.master.listbox.listbox.selection_set(index)
+        self.master.update_file_count_label()
+        self.update_state()
+    
+    def swap(self, index_difference: int) -> None:
+        """For swapping two values - used in move up and move down."""
+        index = self.master.listbox.current_index
+        files = self.master.files
+        files[index], files[index + index_difference] = (
+            files[index + index_difference], files[index])
+        self.master.listbox.swap(index, index + index_difference)
+        self.update_state()
+
+    def update_state(self) -> None:
+        """Updates button states based on currently selected index."""
+        index = self.master.listbox.current_index
+        if index is None:
+            # Nothing selected.
+            self.delete_button.config(state="disabled")
+            self.move_up_button.config(state="disabled")
+            self.move_down_button.config(state="disabled")
+            return
+        # Can always delete the currently selected item.
+        self.delete_button.config(state="normal")
+        # Can move up if index > 0 i.e. index != 0.
+        self.move_up_button.config(state=bool_to_state(index))
+        # Can move down if element is not the last.
+        size = self.master.listbox.size
+        self.move_down_button.config(state=bool_to_state(index < size - 1))
+        
