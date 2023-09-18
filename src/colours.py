@@ -23,17 +23,22 @@ PROGRESS_CIRCLE_COLOURS = {
     "outline": "#ffffff"
 }
 ENTRY_COLOURS = {
-    "background": "#24bf77"
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
 }
 TEXTBOX_COLOURS = {
-    "background": "#24bf77"
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
 }
 LISTBOX_COLOURS = {
-    "background": "#24bf77"
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
 }
 CHECKBUTTON_COLOURS = {
-    "background": "#24bf77"
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
 }
 RADIOBUTTON_COLOURS = {
-    "background": "#24bf77"
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
 }

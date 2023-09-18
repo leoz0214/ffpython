@@ -71,8 +71,12 @@ class AudioPlayer(tk.Frame):
             "<Right>",
             lambda *_: self.frame.play_controls_frame.seek_forward())
 
-        # Playback thread (daemon - stops when the app is closed).
-        playback_thread = threading.Thread(target=self.play, daemon=True)
+        self.start_playback_thread()
+    
+    def start_playback_thread(self, from_seek: bool = False) -> None:
+        """Starts the playback thread."""
+        playback_thread = threading.Thread(
+            target=lambda: self.play(from_seek=from_seek), daemon=True)
         playback_thread.start()
     
     def update_state(self, frame: tk.Frame | None = None) -> None:
@@ -148,8 +152,7 @@ class AudioPlayer(tk.Frame):
     def resume(self) -> None:
         """Resumes the audio."""
         self.current.resume()
-        playback_thread = threading.Thread(target=self.play, daemon=True)
-        playback_thread.start()
+        self.start_playback_thread()
     
     def stop(self, update_state: bool = True) -> None:
         """Terminates audio playback."""
@@ -166,8 +169,7 @@ class AudioPlayer(tk.Frame):
         """Replays the audio."""
         self.frame.update_progress(0)
         self.frame.stop_button.config(text="Stop Playback")
-        playback_thread = threading.Thread(target=self.play, daemon=True)
-        playback_thread.start()
+        self.start_playback_thread()
     
     def seek_after_end(self) -> None:
         """
@@ -185,9 +187,7 @@ class AudioPlayer(tk.Frame):
         if self.current.start_time is None:
             self.seek_after_end()
         self.current.seek_to(seconds)
-        playback_thread = threading.Thread(
-            target=lambda: self.play(from_seek=True), daemon=True)
-        playback_thread.start()
+        self.start_playback_thread(from_seek=True)
     
     def seek_back(self) -> None:
         """Seeks back in the audio."""
@@ -196,9 +196,7 @@ class AudioPlayer(tk.Frame):
         if self.current.paused:
             self.frame.play_controls_frame.change_state(forced=True)
         self.current.seek_back(SEEK_SECONDS)
-        playback_thread = threading.Thread(
-            target=lambda: self.play(from_seek=True), daemon=True)
-        playback_thread.start()
+        self.start_playback_thread(from_seek=True)
     
     def seek_forward(self) -> None:
         """Seeks forward in the audio."""
@@ -208,9 +206,7 @@ class AudioPlayer(tk.Frame):
         if self.current.paused:
             self.frame.play_controls_frame.change_state(forced=True)
         self.current.seek_forward(SEEK_SECONDS)
-        playback_thread = threading.Thread(
-            target=lambda: self.play(from_seek=True), daemon=True)
-        playback_thread.start()
+        self.start_playback_thread(from_seek=True)
     
     def create_playlist(self) -> None:
         """Navigate to the playlist creation part of the app."""

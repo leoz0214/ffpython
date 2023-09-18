@@ -6,10 +6,13 @@ from tkinter import messagebox
 from typing import Callable
 
 import main
-from colours import ENTRY_COLOURS, FG, CHECKBUTTON_COLOURS, RADIOBUTTON_COLOURS
+from colours import FG
 from fileh import get_import_folder_settings, update_import_folder_settings
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
-from widgets import Button, StringEntry, Textbox, Listbox, HorizontalLine
+from widgets import (
+    Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
+    Checkbutton
+)
 
 
 MAX_PLAYLIST_NAME_LENGTH = 100
@@ -142,9 +145,8 @@ class ImportFolderToplevel(tk.Toplevel):
         self.folder_label = tk.Label(self, font=inter(15), text="Folder:")
         # Approximate Windows file length limit is 260 characters.
         self.folder_entry = StringEntry(
-            self, max_length=260, state="disabled",
-            disabledbackground=ENTRY_COLOURS["background"],
-            disabledforeground=FG, initial_value=NOT_SET)
+            self, max_length=260, state="disabled", disabledforeground=FG,
+            initial_value=NOT_SET)
         self.select_folder_button = Button(
             self, "Select", inter(12), command=self.select_folder)
 
@@ -270,10 +272,8 @@ class FileTypesFrame(tk.Frame):
             for extension in ALLOWED_EXTENSIONS
         }
         for i, (extension, variable) in enumerate(self.states.items()):
-            checkbutton = tk.Checkbutton(
-                self, font=inter(12), text=extension, variable=variable,
-                selectcolor=CHECKBUTTON_COLOURS["background"],
-                command=master.update_button_state)
+            checkbutton = Checkbutton(
+                self, extension, variable, command=master.update_button_state)
             checkbutton.grid(
                 row=i//2, column=i%2, padx=5, pady=5, sticky="w")
 
@@ -293,20 +293,18 @@ class SearchScopeFrame(tk.Frame):
 
     def __init__(self, master: ImportFolderToplevel, initial: bool) -> None:
         super().__init__(master)
-        self.recusive_variable = tk.BooleanVar(value=initial)
+        self.recursive_variable = tk.BooleanVar(value=initial)
         for text, value in (
             ("Recursive (include all sub-folders)", True),
             ("Non-recursive (top-level folder only)", False)
         ):
-            radiobutton = tk.Radiobutton(
-                self, font=inter(12), text=text,
-                variable=self.recusive_variable, value=value,
-                selectcolor=RADIOBUTTON_COLOURS["background"])
+            radiobutton = Radiobutton(
+                self, text, self.recursive_variable, value)
             radiobutton.pack(padx=5, pady=5, anchor="w")
     
     @property
     def recursive(self) -> bool:
-        return self.recusive_variable.get()
+        return self.recursive_variable.get()
 
 
 class FileHandlingFrame(tk.Frame):

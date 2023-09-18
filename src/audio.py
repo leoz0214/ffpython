@@ -74,7 +74,7 @@ class Audio:
     def wait(method: Callable) -> Callable:
         """Decorator to wait for process creation/termination."""
         def wrapper(self: "Audio", *args, **kwargs) -> Any:
-            # Wait until process handling done.
+            # Busy Wait until process handling done.
             while self.handling_process:
                 time.sleep(0.01)
             return method(self, *args, **kwargs)
@@ -182,11 +182,11 @@ def load_audio(file_path: str) -> Audio:
                 commands, creationflags=subprocess.CREATE_NO_WINDOW,
                 timeout=30).decode())
     except subprocess.CalledProcessError:
-        raise Exception(
+        raise RuntimeError(
             "Unable to obtain audio data. Are you sure you have ffprobe "
             "installed, and that the audio file is valid?")
     except subprocess.TimeoutExpired:
-        raise Exception("Timeout while trying to fetch audio metadata.")
+        raise TimeoutError("Timeout while trying to fetch audio metadata.")
 
     try:
         duration = float(json_data["format"]["duration"])

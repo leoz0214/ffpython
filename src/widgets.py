@@ -1,10 +1,10 @@
 """Custom widgets to use in the app, extended from Tkinter widgets."""
 import tkinter as tk
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Any
 
 from colours import (
     BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS,
-    LISTBOX_COLOURS
+    LISTBOX_COLOURS, RADIOBUTTON_COLOURS, CHECKBUTTON_COLOURS
 )
 from utils import inter
 
@@ -22,8 +22,7 @@ class Button(tk.Button):
     ) -> None:
         super().__init__(
             master, text=text, font=font, width=width, border=border,
-            command=command, bg=bg, activebackground=activebg,
-            **kwargs)
+            command=command, bg=bg, activebackground=activebg, **kwargs)
         self.normal_bg = bg
         self.normal_cursor = cursor
         self.disabled_cursor = disabled_cursor
@@ -85,15 +84,20 @@ class StringEntry(tk.Entry):
     def __init__(
         self, master: tk.Widget, font: tuple = inter(15),
         bg: str = ENTRY_COLOURS["background"],
+        activebg: str = ENTRY_COLOURS["activebackground"],
         width: int = 32, max_length: int = 256, initial_value: str = "",
         **kwargs
     ) -> None:
         self.variable = tk.StringVar(value=initial_value)
         self.variable.trace("w", lambda *_: self.validate())
         self.max_length = max_length
+        self.normal_bg = bg
+        self.active_bg = activebg
         super().__init__(
             master, font=font, bg=bg, width=width, textvariable=self.variable,
-            **kwargs)
+            disabledbackground=bg, **kwargs)
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
     
     @property
     def value(self) -> str:
@@ -102,6 +106,14 @@ class StringEntry(tk.Entry):
     def validate(self) -> None:
         """Performs length validation on the string."""
         self.variable.set(self.variable.get()[:self.max_length])
+    
+    def on_enter(self) -> None:
+        """Hovering over the entry."""
+        self.config(bg=self.active_bg, disabledbackground=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the entry."""
+        self.config(bg=self.normal_bg, disabledbackground=self.normal_bg)
 
 
 class Textbox(tk.Frame):
@@ -110,6 +122,7 @@ class Textbox(tk.Frame):
     def __init__(
         self, master: tk.Widget, font: tuple = inter(11),
         bg: str = TEXTBOX_COLOURS["background"],
+        activebg: str = TEXTBOX_COLOURS["activebackground"],
         width: int = 64, height: int = 16, max_length: int = 4096,
         vertical_scrollbar: bool = True, horizontal_scrollbar: bool = False,
         wrap: str = "word"
@@ -117,8 +130,10 @@ class Textbox(tk.Frame):
         super().__init__(master)
         self.max_length = max_length
         self.previous_text = ""
+        self.normal_bg = bg
+        self.active_bg = activebg
         self.textbox = tk.Text(
-            self, font=font, bg=bg, width=width, height=height, wrap=wrap)
+            self, font=font, bg=bg, width=width, height=height, wrap=wrap,)
         self.textbox.grid(row=0, column=0)
 
         if vertical_scrollbar:
@@ -133,6 +148,8 @@ class Textbox(tk.Frame):
             self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
 
         self.after(500, self.validate)
+        self.textbox.bind("<Enter>", lambda *_: self.on_enter())
+        self.textbox.bind("<Leave>", lambda *_: self.on_exit())
 
     @property
     def text(self) -> str:
@@ -160,16 +177,27 @@ class Textbox(tk.Frame):
         # Keep on validating at regular intervals.
         self.after(500, self.validate)
 
+    def on_enter(self) -> None:
+        """Hovering over the textbox."""
+        self.textbox.config(bg=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the textbox."""
+        self.textbox.config(bg=self.normal_bg)
+
 
 class Listbox(tk.Frame):
     """Listbox convenience wrapper, including scrollbar support."""
 
     def __init__(
         self, master: tk.Widget, font: tuple = inter(11),
-        bg: str = LISTBOX_COLOURS["background"], width: int = 64,
-        height: int = 16, vertical_scrollbar: bool = True,
-        horizontal_scrollbar: bool = False
+        bg: str = LISTBOX_COLOURS["background"],
+        activebg: str = LISTBOX_COLOURS["activebackground"],
+        width: int = 64, height: int = 16,
+        vertical_scrollbar: bool = True, horizontal_scrollbar: bool = False
     ):
+        self.normal_bg = bg
+        self.active_bg = activebg
         super().__init__(master)
         self.listbox = tk.Listbox(
             self, font=font, bg=bg, width=width, height=height)
@@ -185,6 +213,9 @@ class Listbox(tk.Frame):
                 self, orient="horizontal", command=self.listbox.xview)
             self.listbox.config(xscrollcommand=self.horizontal_scrollbar.set)
             self.horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
+    
+        self.listbox.bind("<Enter>", lambda *_: self.on_enter())
+        self.listbox.bind("<Leave>", lambda *_: self.on_exit())
     
     @property
     def current_index(self) -> int | None:
@@ -221,3 +252,63 @@ class Listbox(tk.Frame):
         self.listbox.insert(index2, index1_text)
         if keep_select:
             self.listbox.select_set(index2)
+
+    def on_enter(self) -> None:
+        """Hovering over the listbox."""
+        self.listbox.config(bg=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the listbox."""
+        self.listbox.config(bg=self.normal_bg)
+
+
+class Radiobutton(tk.Radiobutton):
+    """Convenient radiobutton wrapper."""
+
+    def __init__(
+        self, master: tk.Widget, text: str, variable: tk.Variable, value: Any,
+        font: tuple = inter(12), bg: str = RADIOBUTTON_COLOURS["background"],
+        activebg: str = RADIOBUTTON_COLOURS["activebackground"],
+        cursor: str = "hand2"
+    ):
+        self.normal_bg = bg
+        self.active_bg = activebg
+        super().__init__(
+            master, text=text, variable=variable, value=value,
+            font=font, selectcolor=bg, cursor=cursor)
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def on_enter(self) -> None:
+        """Hovering over the radiobutton."""
+        self.config(selectcolor=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the radiobutton."""
+        self.config(selectcolor=self.normal_bg)
+
+
+class Checkbutton(tk.Checkbutton):
+    """Convenient radiobutton wrapper."""
+
+    def __init__(
+        self, master: tk.Widget, text: str, variable: tk.BooleanVar,
+        font: tuple = inter(12), bg: str = CHECKBUTTON_COLOURS["background"],
+        activebg: str = CHECKBUTTON_COLOURS["activebackground"],
+        cursor: str = "hand2", **kwargs
+    ):
+        self.normal_bg = bg
+        self.active_bg = activebg
+        super().__init__(
+            master, text=text, variable=variable,
+            font=font, selectcolor=bg, cursor=cursor, **kwargs)
+        self.bind("<Enter>", lambda *_: self.on_enter())
+        self.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def on_enter(self) -> None:
+        """Hovering over the checkbutton."""
+        self.config(selectcolor=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the checkbutton."""
+        self.config(selectcolor=self.normal_bg)

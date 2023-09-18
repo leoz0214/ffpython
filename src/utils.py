@@ -100,9 +100,7 @@ def open_audio_file() -> str | None:
     if not file_path:
         # Cancelled.
         return None
-    if not any(
-        file_path.endswith(extension) for extension in ALLOWED_EXTENSIONS
-    ):
+    if not file_path.endswith(ALLOWED_EXTENSIONS):
         # Bypassed file extension filter, not allowed.
         messagebox.showerror(
             "Error",
