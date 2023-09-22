@@ -36,12 +36,44 @@ class CreatePlaylist(tk.Frame):
         self.separator = HorizontalLine(self, width=750)
         self.audio_frame = CreatePlaylistAudioFrame(self)
         self.separator2 = HorizontalLine(self, width=750)
+        self.menu = CreatePlaylistMenu(self)
+
+        master.root.bind("<Control-o>", lambda *_: self.audio_frame.add_file())
+        master.root.bind(
+            "<Control-i>", lambda *_: self.audio_frame.import_folder())
 
         self.title.pack(padx=10, pady=3)
         self.metadata_frame.pack(padx=10, pady=3)
         self.separator.pack(padx=10, pady=3)
         self.audio_frame.pack(padx=10, pady=3)
         self.separator2.pack(padx=10, pady=3)
+        master.root.config(menu=self.menu)
+    
+    def back(self) -> None:
+        """Returns to main audio player."""
+        for binding in ("Control-o", "control-i"):
+            self.master.root.unbind(f"<{binding}>")
+        self.master.update_state()
+
+
+class CreatePlaylistMenu(tk.Menu):
+    """Toplevel menu for the create playlist section of the program.."""
+
+    def __init__(self, master: CreatePlaylist) -> None:
+        super().__init__(master)
+        self.file_menu = tk.Menu(self, tearoff=False)
+        self.file_menu.add_command(
+            label="Add File (Ctrl+O)",
+            font=inter(12), command=master.audio_frame.add_file)
+        self.file_menu.add_command(
+            label="Import Folder (Ctrl+I)", font=inter(12),
+            command=master.audio_frame.import_folder)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(
+            label="Back", font=inter(12), command=master.back)
+        self.file_menu.add_command(
+            label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+        self.add_cascade(label="File", menu=self.file_menu)
 
 
 class CreatePlaylistMetadataFrame(tk.Frame):
@@ -80,6 +112,8 @@ class CreatePlaylistAudioFrame(tk.Frame):
         self.file_handling_frame = FileHandlingFrame(self)
         self.file_count_label = tk.Label(self, font=inter(20), text="Files: 0")
         self.files = []
+        self.opened_import_window = False
+    
         self.listbox.listbox.bind(
             "<<ListboxSelect>>",
             lambda *_: self.file_handling_frame.update_state())
@@ -92,9 +126,16 @@ class CreatePlaylistAudioFrame(tk.Frame):
         self.file_count_label.grid(row=1, column=2, padx=(10, 0), sticky="w")
     
     @staticmethod
-    def check_playlist_length(method: Callable) -> None:
-        """Decorator to refuse adding more files if the limit is reached."""
+    def validate(method: Callable) -> None:
+        """
+        Decorator to validate a user event,
+        and refuses adding more files if the limit is reached.
+        """
         def wrapper(self: "CreatePlaylistAudioFrame") -> None:
+            # Cannot override toplevel window. Do not allow
+            # events from the main window during this.
+            if self.opened_import_window:
+                return
             if len(self.files) == MAX_PLAYLIST_LENGTH:
                 messagebox.showerror(
                     "Error",
@@ -104,7 +145,7 @@ class CreatePlaylistAudioFrame(tk.Frame):
             method(self)
         return wrapper       
     
-    @check_playlist_length
+    @validate
     def add_file(self) -> None:
         """Allows the user to add an audio file to the playlist."""
         file_path = open_audio_file()
@@ -118,9 +159,10 @@ class CreatePlaylistAudioFrame(tk.Frame):
         self.listbox.append(file_path)
         self.update_file_count_label()
     
-    @check_playlist_length
+    @validate
     def import_folder(self) -> None:
         """Gateway to the import folder toplevel."""
+        self.opened_import_window = True
         ImportFolderToplevel(self)
     
     def update_file_count_label(self) -> None:
@@ -140,6 +182,7 @@ class ImportFolderToplevel(tk.Toplevel):
             f"{main.DEFAULT_TITLE} - Playlists - Create - Import Folder")
         self.grab_set()
         self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.close)
         self.title_label = tk.Label(
             self, font=inter(30, True), text="Import Folder")
         self.folder_label = tk.Label(self, font=inter(15), text="Folder:")
@@ -149,6 +192,7 @@ class ImportFolderToplevel(tk.Toplevel):
             initial_value=NOT_SET)
         self.select_folder_button = Button(
             self, "Select", inter(12), command=self.select_folder)
+        self.bind("<Control-o>", lambda *_: self.select_folder())
 
         settings = get_import_folder_settings()
         
@@ -230,7 +274,7 @@ class ImportFolderToplevel(tk.Toplevel):
         self.master.update_file_count_label()
         settings = {"extensions": extensions, "recursive": is_recursive}
         update_import_folder_settings(settings)
-        self.destroy()
+        self.close()
     
     def get_files(
         self, folder: pathlib.Path, extensions: set[str], is_recursive: bool
@@ -257,6 +301,11 @@ class ImportFolderToplevel(tk.Toplevel):
             self.folder_entry.value != NOT_SET
             and self.file_types_input.selected)
         self.import_button.config(state=bool_to_state(valid))
+    
+    def close(self) -> None:
+        """Closes the window."""
+        self.destroy()
+        self.master.opened_import_window = False
 
 
 class FileTypesFrame(tk.Frame):

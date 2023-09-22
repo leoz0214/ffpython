@@ -85,12 +85,14 @@ class AudioPlayer(tk.Frame):
         or else, displays the main frame.
         """
         self.frame.destroy()
+        self.root.unbind("<Control-o>")
         if frame is not None:
             self.frame = frame(self)
         else:
             self.frame = (
                 idle.IdleFrame if self.current is None else loaded.LoadedFrame
             )(self)
+            self.root.bind("<Control-o>", lambda *_: self.open())
         self.frame.pack(padx=25, pady=25)
 
     def play(self, from_seek: bool = False) -> None:
@@ -159,8 +161,8 @@ class AudioPlayer(tk.Frame):
         # Unbinds audio playback control keys.
         for key in ("space", "Left", "Right"):
             self.root.unbind(f"<{key}>")
-        # Stops and returns None, so current becomes None.
-        self.current = self.current.stop()
+        self.current.stop()
+        self.current = None
         self.loops = None
         if update_state:
             self.update_state()
