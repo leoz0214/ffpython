@@ -7,7 +7,10 @@ from typing import Callable
 
 import main
 from colours import FG
-from fileh import get_import_folder_settings, update_import_folder_settings
+from fileh import (
+    get_import_folder_settings, update_import_folder_settings,
+    create_playlist
+)
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
     Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
@@ -36,6 +39,8 @@ class CreatePlaylist(tk.Frame):
         self.separator = HorizontalLine(self, width=750)
         self.audio_frame = CreatePlaylistAudioFrame(self)
         self.separator2 = HorizontalLine(self, width=750)
+        self.create_button = Button(
+            self, "Create", inter(25), command=self.create)
         self.menu = CreatePlaylistMenu(self)
 
         master.root.bind("<Control-o>", lambda *_: self.audio_frame.add_file())
@@ -47,7 +52,23 @@ class CreatePlaylist(tk.Frame):
         self.separator.pack(padx=10, pady=3)
         self.audio_frame.pack(padx=10, pady=3)
         self.separator2.pack(padx=10, pady=3)
+        self.create_button.pack(padx=10, pady=3)
         master.root.config(menu=self.menu)
+    
+    def create(self) -> None:
+        """Creates the playlist upon confirmation."""
+        if not messagebox.askyesnocancel(
+            "Confirm Playlist Creation",
+                "Are you sure you would like to create this playlist?"
+        ):
+            return
+        name = self.metadata_frame.name
+        description = self.metadata_frame.description
+        # pathlib.Path -> str. Ready to be inserted into DB if needed.
+        files = [str(file) for file in self.audio_frame.files]
+        create_playlist(name, description, files)
+        messagebox.showinfo("Success", "Playlist successfully created.")
+        self.back()
     
     def back(self) -> None:
         """Returns to main audio player."""
@@ -98,6 +119,15 @@ class CreatePlaylistMetadataFrame(tk.Frame):
             row=1, column=0, padx=5, pady=5, sticky="ne")
         self.description_entry.grid(
             row=1, column=1, padx=5, pady=5, sticky="w")
+    
+    @property
+    def name(self) -> str:
+        return self.name_entry.value.strip()
+    
+    @property
+    def description(self) -> str:
+        return self.description_entry.text.strip()[
+            :MAX_PLAYLIST_DESCRIPTION_LENGTH]
 
 
 class CreatePlaylistAudioFrame(tk.Frame):

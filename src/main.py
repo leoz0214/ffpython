@@ -11,6 +11,7 @@ import loaded
 import playlists
 from audio import load_audio
 from colours import FG, BG
+from fileh import set_up_database
 from utils import open_audio_file
 
 
@@ -220,6 +221,7 @@ class AudioPlayer(tk.Frame):
 
 def main() -> None:
     """Main procedure of the program."""
+    set_up_database()
     root = tk.Tk()
     root.tk_setPalette(foreground=FG, background=BG)
     root.protocol("WM_DELETE_WINDOW", quit_app)
