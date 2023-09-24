@@ -80,13 +80,20 @@ class CreatePlaylist(tk.Frame):
                 "Are you sure you would like to create this playlist?"
         ):
             return
-        create_playlist(name, description, files)
+        # Attempts playlist creation, shows error message if failed.
+        try:
+            create_playlist(name, description, files)
+        except Exception as e:
+            messagebox.showerror(
+                "Error", f"Failed to create the playlist: {e}")
+            return
         messagebox.showinfo("Success", "Playlist successfully created.")
-        self.back()
+        self.back(confirm=False)
     
-    def back(self) -> None:
+    def back(self, confirm: bool = True) -> None:
         """Returns to main audio player."""
-        if not messagebox.askyesnocancel(
+        # Safeguards in case user accidentally goes back unintentionally.
+        if confirm and not messagebox.askyesnocancel(
             "Confirm Back",
                 "Are you sure you no longer wish to create this playlist?"
         ):

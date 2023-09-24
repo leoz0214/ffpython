@@ -1,4 +1,5 @@
 """Handles file IO, save data and database of the app etc."""
+import datetime as dt
 import json
 import pathlib
 import sqlite3
@@ -56,7 +57,8 @@ def set_up_database() -> None:
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {PLAYLISTS_TABLE}
-                (id integer primary key, name TEXT UNIQUE, description TEXT)
+                (id integer primary key, name TEXT UNIQUE,
+                    description TEXT, utc_date_time_created DATETIME)
                 """
             )
             # Audio files table: ID, file path.
@@ -82,10 +84,10 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
     try:
         with sqlite3.connect(DATABASE_PATH) as connection:
             cursor = connection.cursor()
-            # Non-existent audio files.
+            # Obtains Non-existent audio files.
             insert_files = [
                 file for file in files if
-                # Does not exist in the table.
+                # Query - Does not exist in the table.
                 not cursor.execute(
                     f"""
                     SELECT EXISTS
@@ -96,10 +98,12 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
                 f"""
                 INSERT INTO {AUDIO_TABLE} (id, file_path) VALUES (NULL, ?)
                 """, ([file] for file in insert_files))
+            date_time_created = dt.datetime.utcnow().isoformat()
             playlist_id = cursor.execute(
                 f"""
-                INSERT INTO {PLAYLISTS_TABLE} (id, name, description)
-                VALUES (NULL, '{name}', '{description}')
+                INSERT INTO {PLAYLISTS_TABLE}
+                (id, name, description, utc_date_time_created)
+                VALUES (NULL, '{name}', '{description}', '{date_time_created}')
                 """
             ).execute(
                 f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name='{name}'"
