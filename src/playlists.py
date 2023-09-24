@@ -9,7 +9,7 @@ import main
 from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
-    create_playlist
+    create_playlist, playlist_exists
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
@@ -39,39 +39,58 @@ class CreatePlaylist(tk.Frame):
         self.separator = HorizontalLine(self, width=750)
         self.audio_frame = CreatePlaylistAudioFrame(self)
         self.separator2 = HorizontalLine(self, width=750)
-        self.create_button = Button(
-            self, "Create", inter(25), command=self.create)
+        self.buttons = CreatePlaylistButtons(self)
         self.menu = CreatePlaylistMenu(self)
 
         master.root.bind("<Control-o>", lambda *_: self.audio_frame.add_file())
         master.root.bind(
             "<Control-i>", lambda *_: self.audio_frame.import_folder())
 
-        self.title.pack(padx=10, pady=3)
-        self.metadata_frame.pack(padx=10, pady=3)
-        self.separator.pack(padx=10, pady=3)
-        self.audio_frame.pack(padx=10, pady=3)
-        self.separator2.pack(padx=10, pady=3)
-        self.create_button.pack(padx=10, pady=3)
+        self.title.pack(padx=10, pady=2)
+        self.metadata_frame.pack(padx=10, pady=2)
+        self.separator.pack(padx=10, pady=2)
+        self.audio_frame.pack(padx=10, pady=2)
+        self.separator2.pack(padx=10, pady=2)
+        self.buttons.pack(padx=10, pady=2)
         master.root.config(menu=self.menu)
     
     def create(self) -> None:
         """Creates the playlist upon confirmation."""
+        name = self.metadata_frame.name
+        if not name:
+            messagebox.showerror("Empty Name", "Please enter a playlist name.")
+            return
+        description = self.metadata_frame.description
+        # pathlib.Path -> str. Ready to be inserted into DB if needed.
+        files = [str(file) for file in self.audio_frame.files]
+        # Only makes sense for a playlist to have at least 2 files.
+        if len(files) < 2:
+            messagebox.showerror(
+                "Insufficient Files",
+                    "Please ensure the playlist "
+                    "has at least 2 files.")
+            return
+        if playlist_exists(name):
+            messagebox.showerror(
+                "Existing Playlist",
+                    "A playlist with the same name already exists.")
+            return
         if not messagebox.askyesnocancel(
             "Confirm Playlist Creation",
                 "Are you sure you would like to create this playlist?"
         ):
             return
-        name = self.metadata_frame.name
-        description = self.metadata_frame.description
-        # pathlib.Path -> str. Ready to be inserted into DB if needed.
-        files = [str(file) for file in self.audio_frame.files]
         create_playlist(name, description, files)
         messagebox.showinfo("Success", "Playlist successfully created.")
         self.back()
     
     def back(self) -> None:
         """Returns to main audio player."""
+        if not messagebox.askyesnocancel(
+            "Confirm Back",
+                "Are you sure you no longer wish to create this playlist?"
+        ):
+            return
         for binding in ("Control-o", "control-i"):
             self.master.root.unbind(f"<{binding}>")
         self.master.update_state()
@@ -104,21 +123,25 @@ class CreatePlaylistMetadataFrame(tk.Frame):
         super().__init__(master)
         self.name_label = tk.Label(
             self, font=inter(15), text="Name of playlist:")
+        n = 1
+        # Finds the first Playlist {n} name not in use.
+        while playlist_exists(f"Playlist {n}"):
+            n += 1
         self.name_entry = StringEntry(
             self, width=44, max_length=MAX_PLAYLIST_NAME_LENGTH,
-            initial_value="Playlist 1")
+            initial_value=f"Playlist {n}")
         
         self.description_label = tk.Label(
             self, font=inter(15), text="Description (optional):")
         self.description_entry = Textbox(
             self, height=5, max_length=MAX_PLAYLIST_DESCRIPTION_LENGTH)
     
-        self.name_label.grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.name_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.name_label.grid(row=0, column=0, padx=5, pady=3, sticky="e")
+        self.name_entry.grid(row=0, column=1, padx=5, pady=3, sticky="w")
         self.description_label.grid(
-            row=1, column=0, padx=5, pady=5, sticky="ne")
+            row=1, column=0, padx=5, pady=3, sticky="ne")
         self.description_entry.grid(
-            row=1, column=1, padx=5, pady=5, sticky="w")
+            row=1, column=1, padx=5, pady=3, sticky="w")
     
     @property
     def name(self) -> str:
@@ -441,4 +464,17 @@ class FileHandlingFrame(tk.Frame):
         # Can move down if element is not the last.
         size = self.master.listbox.size
         self.move_down_button.config(state=bool_to_state(index < size - 1))
+
+
+class CreatePlaylistButtons(tk.Frame):
+    """Bottom buttons for the create playlist."""
+
+    def __init__(self, master: CreatePlaylist) -> None:
+        super().__init__(master)
+        self.cancel_button = Button(
+            self, "Back", inter(20), command=master.back)
+        self.create_button = Button(
+            self, "Create", inter(20), command=master.create)
         
+        self.cancel_button.pack(side="left", padx=5)
+        self.create_button.pack(side="right", padx=5)

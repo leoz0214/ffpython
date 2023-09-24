@@ -119,3 +119,17 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
                 """, audio_playlist_records)
     finally:
         connection.close()
+
+
+def playlist_exists(name: str) -> bool:
+    """Returns True if a playlist with a given name exists, else False."""
+    try:
+        with sqlite3.connect(DATABASE_PATH) as connection:
+            cursor = connection.cursor()
+            return bool(cursor.execute(
+                f"""
+                SELECT EXISTS
+                (SELECT * FROM {PLAYLISTS_TABLE} WHERE name='{name}')
+                """).fetchone()[0])
+    finally:
+        connection.close()
