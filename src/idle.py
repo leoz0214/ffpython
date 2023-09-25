@@ -36,4 +36,6 @@ class IdleMenu(tk.Menu):
         self.playlists_menu.add_command(
             label="Create", font=inter(12),
             command=master.master.create_playlist)
+        self.playlists_menu.add_command(
+            label="View", font=inter(12), command=master.master.view_playlists)
         self.add_cascade(label="Playlists", menu=self.playlists_menu)

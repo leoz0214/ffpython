@@ -3,17 +3,23 @@ Internal handling of audio, including loading and playing.
 This app relies fully on FFmpeg software, so it expected that
 ffmpeg is fully installed and added to PATH.
 """
+import ctypes
 import json
 import pathlib
 import subprocess
 import time
+from contextlib import suppress
 from timeit import default_timer as timer
 from typing import Callable, Any
 
 from utils import (
     MAX_AUDIO_NAME_DISPLAY_LENGTH, MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH,
-    limit_length
+    BIN_FOLDER, limit_length
 )
+
+
+get_memory_usage_alt = ctypes.CDLL(
+    str(BIN_FOLDER / "memory_usage.so")).get_memory_usage
 
 
 class Audio:
@@ -55,10 +61,16 @@ class Audio:
         self.handling_process = True
         self.process = subprocess.Popen(
             command, creationflags=subprocess.CREATE_NO_WINDOW)
-        initial_memory_usage = self.memory_usage
-        # Wait until process 'begins' - spike in memory usage.
-        while self.memory_usage <= initial_memory_usage:
-            time.sleep(0.05)
+        try:
+            initial_memory_usage = self.memory_usage
+            # Wait until process 'begins' - spike in memory usage.
+            # Also if memory usage falls to 0, exit too.
+            while 0 < self.memory_usage <= initial_memory_usage:
+                time.sleep(0.05)
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Falling back to hard-coded audio delay.")
+            time.sleep(0.5)
         if self.start_time is None:
             self.start_time = timer()
         self.handling_process = False
@@ -160,13 +172,24 @@ class Audio:
     def memory_usage(self) -> int:
         """Current number of Kilobytes used by the process."""
         if not self.process:
+            # No process, no memory!
             return 0
+        with suppress(Exception):
+            # C++ shared library approach.
+            memory_bytes = get_memory_usage_alt(self.process.pid)
+            if memory_bytes == -1:
+                raise RuntimeError
+            return memory_bytes
+        # Backup approach, try it. in case of failure.
         # Identifies the PID and gets task info, with memory info included.
         command = ("tasklist", "/fi", f"pid eq {self.process.pid}")
         # Runs the command and fetches the output as a string.
         output = subprocess.check_output(command).decode()
         # Parses the output string for the memory usage in KB.
-        return int(output.removesuffix(" K\r\n").split()[-1].replace(",", ""))
+        # Multiplies by 1024 to get rough memory usage in Bytes.
+        return int(
+            output.removesuffix(" K\r\n").split()[-1].replace(",", "")
+        ) * 1024
 
 
 def load_audio(file_path: str) -> Audio:

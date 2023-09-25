@@ -10,6 +10,7 @@ from PIL import ImageTk
 APP_FOLDER = pathlib.Path(__file__).parent.parent
 IMAGES_FOLDER = APP_FOLDER / "images"
 FONT_FOLDER = APP_FOLDER / "font"
+BIN_FOLDER = APP_FOLDER / "bin"
 
 
 # Load Inter font downloaded online.

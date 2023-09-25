@@ -485,3 +485,24 @@ class CreatePlaylistButtons(tk.Frame):
         
         self.cancel_button.pack(side="left", padx=5)
         self.create_button.pack(side="right", padx=5)
+
+
+
+
+
+class ViewPlaylists(tk.Frame):
+    """
+    Window to view and sort playlists by name, length, ID, and
+    date/time created, and allows the user to play/edit/delete these
+    playlists.
+    """
+
+    def __init__(self, master: "main.AudioPlayer") -> None:
+        super().__init__(master)
+        master.root.title(f"{main.DEFAULT_TITLE} - Playlists")
+
+        self.title = tk.Label(self, font=inter(30, True), text="Playlists")
+
+        # Todo - Leverage ttk.treeview widget as table and implement.
+
+        self.title.pack(padx=10, pady=5)

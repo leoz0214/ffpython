@@ -217,6 +217,12 @@ class AudioPlayer(tk.Frame):
             # Stop current playback first.
             self.stop()
         self.update_state(playlists.CreatePlaylist)
+    
+    def view_playlists(self) -> None:
+        """Navigate to the playlists part of the app."""
+        if self.current is not None:
+            self.stop()
+        self.update_state(playlists.ViewPlaylists)
 
 
 def main() -> None:
