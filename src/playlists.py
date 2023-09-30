@@ -3,6 +3,7 @@ import pathlib
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinter import ttk
 from typing import Callable
 
 import main
@@ -14,7 +15,7 @@ from fileh import (
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
     Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
-    Checkbutton
+    Checkbutton, Table
 )
 
 
@@ -25,6 +26,13 @@ MAX_PLAYLIST_LENGTH = 1000
 # paths (files or folders) to scan before displaying an error message.
 MAX_PATHS_TO_SCAN = 100_000
 NOT_SET = "Not Set"
+# Table displayed upon viewing data.
+TABLE_HEADINGS = {
+    "id": "ID",
+    "name": "Name",
+    "length": "Length",
+    "date_time_created": "Date/Time Created"
+}
 
 
 class CreatePlaylist(tk.Frame):
@@ -503,6 +511,18 @@ class ViewPlaylists(tk.Frame):
 
         self.title = tk.Label(self, font=inter(30, True), text="Playlists")
 
-        # Todo - Leverage ttk.treeview widget as table and implement.
+        self.table = PlaylistsTable(self)
 
         self.title.pack(padx=10, pady=5)
+        self.table.pack(padx=10, pady=5)
+
+
+class PlaylistsTable(Table):
+    """
+    Contains the Treeview serving as the table of playlists.
+    Can be sorted by name, length, ID and date/time created.
+    Click into a given playlist to expand.
+    """
+
+    def __init__(self, master: ViewPlaylists) -> None:
+        super().__init__(master, TABLE_HEADINGS)

@@ -1,10 +1,12 @@
 """Custom widgets to use in the app, extended from Tkinter widgets."""
 import tkinter as tk
+from tkinter import ttk
 from typing import Callable, Iterable, Any
 
 from colours import (
     BUTTON_COLOURS, LINE_COLOURS, ENTRY_COLOURS, TEXTBOX_COLOURS,
-    LISTBOX_COLOURS, RADIOBUTTON_COLOURS, CHECKBUTTON_COLOURS
+    LISTBOX_COLOURS, RADIOBUTTON_COLOURS, CHECKBUTTON_COLOURS, TABLE_COLOURS,
+    FG
 )
 from utils import inter
 
@@ -289,7 +291,7 @@ class Radiobutton(tk.Radiobutton):
 
 
 class Checkbutton(tk.Checkbutton):
-    """Convenient radiobutton wrapper."""
+    """Convenient checkbutton wrapper."""
 
     def __init__(
         self, master: tk.Widget, text: str, variable: tk.BooleanVar,
@@ -312,3 +314,64 @@ class Checkbutton(tk.Checkbutton):
     def on_exit(self) -> None:
         """No longer hovering over the checkbutton."""
         self.config(selectcolor=self.normal_bg)
+
+
+class Table(tk.Frame):
+    """Simulates a table using a treeview, along with a scrollbar."""
+
+    def __init__(
+        self, master: tk.Widget, headings: dict[str, str],
+        heading_font: tuple = inter(15), row_font: tuple = inter(11),
+        bg: str = TABLE_COLOURS["background"],
+        active_bg: str = TABLE_COLOURS["activebackground"],
+        height: int = 16, vertical_scrollbar: bool = True
+    ) -> None:
+        super().__init__(master)
+        self.normal_bg = bg
+        self.active_bg = active_bg
+        self.treeview = ttk.Treeview(
+            self, columns=tuple(headings), height=height, show="headings")
+        # Sets the table font and background.
+        style = ttk.Style()
+        # Required for Treeview colour.
+        style.theme_use("clam")
+        style.configure(
+            "Treeview", background=bg, fieldbackground=bg,
+            foreground=FG, font=row_font)
+        style.configure(
+            "Treeview.Heading", background=bg, fieldbackground=bg,
+            foreground=FG, font=heading_font)
+        style.map(
+            "Treeview.Heading", background=(
+                ("pressed", "!focus", bg),
+                ("active", active_bg)
+            ))
+        # Adds the headings.
+        for column, text in headings.items():
+            self.treeview.heading(column, text=text)
+        
+        if vertical_scrollbar:
+            self.scrollbar = tk.Scrollbar(
+                self, command=self.treeview.yview, orient="vertical")
+            self.treeview.config(yscrollcommand=self.scrollbar.set)
+            self.scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        self.treeview.grid(row=0, column=0)
+
+        self.treeview.bind("<Enter>", lambda *_: self.on_enter())
+        self.treeview.bind("<Leave>", lambda *_: self.on_exit())
+    
+    def on_enter(self) -> None:
+        """Hovering over the table."""
+        style = ttk.Style()
+        for name in ("Treeview", "Treeview.Heading"):
+            style.configure(
+                name, background=self.active_bg, fieldbackground=self.active_bg)
+    
+    def on_exit(self) -> None:
+        """No longer hovering over the table."""
+        style = ttk.Style()
+        for name in ("Treeview", "Treeview.Heading"):
+            style.configure(
+                name, background=self.normal_bg,
+                fieldbackground=self.normal_bg)

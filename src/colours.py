@@ -42,3 +42,7 @@ RADIOBUTTON_COLOURS = {
     "background": "#24bf77",
     "activebackground": "#1dc44a"
 }
+TABLE_COLOURS = {
+    "background": "#24bf77",
+    "activebackground": "#1dc44a"
+}
