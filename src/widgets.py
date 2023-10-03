@@ -375,3 +375,12 @@ class Table(tk.Frame):
             style.configure(
                 name, background=self.normal_bg,
                 fieldbackground=self.normal_bg)
+    
+    def append(self, values: tuple) -> None:
+        """Appends a record to the table."""
+        self.treeview.insert("", "end", values=values)
+    
+    def extend(self, records: Iterable[tuple]) -> None:
+        """Adds multiple records to the table."""
+        for record in records:
+            self.append(record)

@@ -88,11 +88,12 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
             insert_files = [
                 file for file in files if
                 # Query - Does not exist in the table.
+                # Using double quotes inside to handle single quotes in files.
                 not cursor.execute(
                     f"""
                     SELECT EXISTS
-                    (SELECT * FROM {AUDIO_TABLE} WHERE file_path='{file}') 
-                    """).fetchone()[0]
+                    (SELECT * FROM {AUDIO_TABLE} WHERE file_path=?) 
+                    """, (file,)).fetchone()[0]
             ]
             cursor.executemany(
                 f"""
@@ -103,15 +104,15 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
                 f"""
                 INSERT INTO {PLAYLISTS_TABLE}
                 (id, name, description, utc_date_time_created)
-                VALUES (NULL, '{name}', '{description}', '{date_time_created}')
-                """
+                VALUES (NULL, ?, ?, ?)
+                """, (name, description, date_time_created)
             ).execute(
-                f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name='{name}'"
+                f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name=?", (name,)
             ).fetchone()[0]
             audio_playlist_records = []
             for position, file in enumerate(files):
                 audio_id = cursor.execute(
-                    f"SELECT id FROM {AUDIO_TABLE} WHERE file_path='{file}'"
+                    f"SELECT id FROM {AUDIO_TABLE} WHERE file_path=?", (file,)
                 ).fetchone()[0]
                 record = (audio_id, playlist_id, position)
                 audio_playlist_records.append(record)
@@ -133,7 +134,43 @@ def playlist_exists(name: str) -> bool:
             return bool(cursor.execute(
                 f"""
                 SELECT EXISTS
-                (SELECT * FROM {PLAYLISTS_TABLE} WHERE name='{name}')
-                """).fetchone()[0])
+                (SELECT * FROM {PLAYLISTS_TABLE} WHERE name=?)
+                """, (name,)).fetchone()[0])
+    finally:
+        connection.close()
+
+
+def load_playlists_overview() -> list[tuple]:
+    """
+    Returns all basic playlist records from the database.
+    Fields: ID, name, length, date/time created.
+    """
+    try:
+        with sqlite3.connect(DATABASE_PATH) as connection:
+            cursor = connection.cursor()
+            playlist_records = cursor.execute(
+                f"""
+                SELECT id, name, utc_date_time_created FROM {PLAYLISTS_TABLE}
+                """).fetchall()
+            audio_playlist_ids = cursor.execute(
+                f"SELECT playlist_id FROM {AUDIO_PLAYLISTS_TABLE}"
+            ).fetchall()
+            lengths = {}
+            for playlist_id in audio_playlist_ids:
+                # Using index 0 to access the value in the 1-tuple.
+                lengths[playlist_id[0]] = lengths.get(playlist_id[0], 0) + 1
+            playlists = []
+            for record in playlist_records:
+                length = lengths[record[0]]
+                # Converts UTC to local time for display.
+                # Also truncates microseconds.
+                utc_date_time_created = dt.datetime.fromisoformat(record[2])
+                date_time_created = utc_date_time_created.replace(
+                    tzinfo=dt.timezone.utc
+                ).astimezone(tz=None).replace(microsecond=0, tzinfo=None)
+                playlist_overview = (
+                    record[0], record[1], length, date_time_created)
+                playlists.append(playlist_overview)
+            return playlists
     finally:
         connection.close()

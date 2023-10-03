@@ -3,14 +3,13 @@ import pathlib
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
-from tkinter import ttk
 from typing import Callable
 
 import main
 from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
-    create_playlist, playlist_exists
+    create_playlist, playlist_exists, load_playlists_overview
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
@@ -512,9 +511,19 @@ class ViewPlaylists(tk.Frame):
         self.title = tk.Label(self, font=inter(30, True), text="Playlists")
 
         self.table = PlaylistsTable(self)
+        playlist_records = load_playlists_overview()
+        self.table.extend(playlist_records)
+
+        self.create_playlist_button = Button(
+            self, "Create Playlist", command=self.create_playlist)
 
         self.title.pack(padx=10, pady=5)
         self.table.pack(padx=10, pady=5)
+        self.create_playlist_button.pack(padx=10, pady=5)
+    
+    def create_playlist(self) -> None:
+        """Navigates to the create playlist tool of the app."""
+        self.master.update_state(CreatePlaylist)
 
 
 class PlaylistsTable(Table):
