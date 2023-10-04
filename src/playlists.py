@@ -14,7 +14,7 @@ from fileh import (
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
     Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
-    Checkbutton, Table
+    Checkbutton, Table, TableColumn
 )
 
 
@@ -26,12 +26,12 @@ MAX_PLAYLIST_LENGTH = 1000
 MAX_PATHS_TO_SCAN = 100_000
 NOT_SET = "Not Set"
 # Table displayed upon viewing data.
-TABLE_HEADINGS = {
-    "id": "ID",
-    "name": "Name",
-    "length": "Length",
-    "date_time_created": "Date/Time Created"
-}
+TABLE_COLUMNS = (
+    TableColumn("id", "ID", 100),
+    TableColumn("name", "Name", 600, "w"),
+    TableColumn("length", "Length", 100),
+    TableColumn("date_time_created", "Created", 175, "w")
+)
 
 
 class CreatePlaylist(tk.Frame):
@@ -534,4 +534,4 @@ class PlaylistsTable(Table):
     """
 
     def __init__(self, master: ViewPlaylists) -> None:
-        super().__init__(master, TABLE_HEADINGS)
+        super().__init__(master, TABLE_COLUMNS)

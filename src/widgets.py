@@ -1,5 +1,6 @@
 """Custom widgets to use in the app, extended from Tkinter widgets."""
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import ttk
 from typing import Callable, Iterable, Any
 
@@ -9,6 +10,15 @@ from colours import (
     FG
 )
 from utils import inter
+
+
+# Table Column dataclass for the Table widget.
+@dataclass
+class TableColumn:
+    id: str
+    heading: str
+    width: int = 250
+    anchor: str = "center"
 
 
 class Button(tk.Button):
@@ -320,7 +330,7 @@ class Table(tk.Frame):
     """Simulates a table using a treeview, along with a scrollbar."""
 
     def __init__(
-        self, master: tk.Widget, headings: dict[str, str],
+        self, master: tk.Widget, columns: Iterable[TableColumn],
         heading_font: tuple = inter(15), row_font: tuple = inter(11),
         bg: str = TABLE_COLOURS["background"],
         active_bg: str = TABLE_COLOURS["activebackground"],
@@ -330,7 +340,8 @@ class Table(tk.Frame):
         self.normal_bg = bg
         self.active_bg = active_bg
         self.treeview = ttk.Treeview(
-            self, columns=tuple(headings), height=height, show="headings")
+            self, columns=[column.id for column in columns],
+            height=height, show="headings")
         # Sets the table font and background.
         style = ttk.Style()
         # Required for Treeview colour.
@@ -346,9 +357,11 @@ class Table(tk.Frame):
                 ("pressed", "!focus", bg),
                 ("active", active_bg)
             ))
-        # Adds the headings.
-        for column, text in headings.items():
-            self.treeview.heading(column, text=text)
+        # Configures the columns and adds the headings.
+        for column in columns:
+            self.treeview.column(
+                column.id, width=column.width, anchor=column.anchor)
+            self.treeview.heading(column.id, text=column.heading)
         
         if vertical_scrollbar:
             self.scrollbar = tk.Scrollbar(

@@ -9,6 +9,7 @@ extern "C" {
 
 
 // Returns the working set size in bytes of a given process by ID.
+// Returns -1 if an issue occurred.
 int get_memory_usage(DWORD pid) {
     PROCESS_MEMORY_COUNTERS pmc;
 
