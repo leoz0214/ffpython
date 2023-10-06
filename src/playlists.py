@@ -1,6 +1,8 @@
 """Handles playlist creation, playing, viewing, editing and deleting."""
+import enum
 import pathlib
 import tkinter as tk
+from contextlib import suppress
 from tkinter import filedialog
 from tkinter import messagebox
 from typing import Callable
@@ -9,7 +11,7 @@ import main
 from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
-    create_playlist, playlist_exists, load_playlists_overview
+    create_playlist, playlist_exists, load_playlists_overview, get_playlist
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
@@ -20,6 +22,7 @@ from widgets import (
 
 MAX_PLAYLIST_NAME_LENGTH = 100
 MAX_PLAYLIST_DESCRIPTION_LENGTH = 2000
+MIN_PLAYLIST_LENGTH = 2
 MAX_PLAYLIST_LENGTH = 1000
 # Prevent performance issues - set a limit on the number of
 # paths (files or folders) to scan before displaying an error message.
@@ -32,6 +35,14 @@ TABLE_COLUMNS = (
     TableColumn("length", "Length", 100),
     TableColumn("date_time_created", "Created", 175, "w")
 )
+
+
+class SortBy(enum.Enum):
+    """Possible ways of sorting the playlist table."""
+    id = "ID"
+    name = "Name"
+    length = "Length"
+    date_time_created = "Created"
 
 
 class CreatePlaylist(tk.Frame):
@@ -71,11 +82,11 @@ class CreatePlaylist(tk.Frame):
         # pathlib.Path -> str. Ready to be inserted into DB if needed.
         files = [str(file) for file in self.audio_frame.files]
         # Only makes sense for a playlist to have at least 2 files.
-        if len(files) < 2:
+        if len(files) < MIN_PLAYLIST_LENGTH:
             messagebox.showerror(
                 "Insufficient Files",
                     "Please ensure the playlist "
-                    "has at least 2 files.")
+                    f"has at least {MIN_PLAYLIST_LENGTH} files.")
             return
         if playlist_exists(name):
             messagebox.showerror(
@@ -95,10 +106,10 @@ class CreatePlaylist(tk.Frame):
                 "Error", f"Failed to create the playlist: {e}")
             return
         messagebox.showinfo("Success", "Playlist successfully created.")
-        self.back(confirm=False)
+        self.change(confirm=False)
     
-    def back(self, confirm: bool = True) -> None:
-        """Returns to main audio player."""
+    def change(self, command: Callable = None, confirm: bool = True):
+        """Moves back or to another part of the program."""
         # Safeguards in case user accidentally goes back unintentionally.
         if confirm and not messagebox.askyesnocancel(
             "Confirm Back",
@@ -107,8 +118,12 @@ class CreatePlaylist(tk.Frame):
             return
         for binding in ("Control-o", "control-i"):
             self.master.root.unbind(f"<{binding}>")
-        self.master.update_state()
-
+        if command is None:
+            # By default, return to the main audio player.
+            self.master.update_state()
+        else:
+            command()
+    
 
 class CreatePlaylistMenu(tk.Menu):
     """Toplevel menu for the create playlist section of the program.."""
@@ -124,10 +139,17 @@ class CreatePlaylistMenu(tk.Menu):
             command=master.audio_frame.import_folder)
         self.file_menu.add_separator()
         self.file_menu.add_command(
-            label="Back", font=inter(12), command=master.back)
+            label="Back", font=inter(12), command=master.change)
         self.file_menu.add_command(
-            label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+            label="Close App (Alt+F4)", font=inter(12),
+            command=lambda: main.quit_app(master.master.root))
         self.add_cascade(label="File", menu=self.file_menu)
+
+        self.playlists_menu = tk.Menu(self, tearoff=False)
+        self.playlists_menu.add_command(
+            label="View", font=inter(12),
+            command=lambda: master.change(master.master.view_playlists))
+        self.add_cascade(label="Playlists", menu=self.playlists_menu)
 
 
 class CreatePlaylistMetadataFrame(tk.Frame):
@@ -486,7 +508,7 @@ class CreatePlaylistButtons(tk.Frame):
     def __init__(self, master: CreatePlaylist) -> None:
         super().__init__(master)
         self.cancel_button = Button(
-            self, "Back", inter(20), command=master.back)
+            self, "Back", inter(20), command=master.change)
         self.create_button = Button(
             self, "Create", inter(20), command=master.create)
         
@@ -505,25 +527,95 @@ class ViewPlaylists(tk.Frame):
     """
 
     def __init__(self, master: "main.AudioPlayer") -> None:
+        # Modifies the table columns to match the current table.
+        for column in TABLE_COLUMNS:
+            column.command = self.get_sort_filter(column)
         super().__init__(master)
         master.root.title(f"{main.DEFAULT_TITLE} - Playlists")
+        self.sort_by = None
+        self.ascending = True
+        self.playlist_records = load_playlists_overview()
+        self.table = PlaylistsTable(self)
+        self.sort(SortBy.name)
+
+        # A playlist toplevel is active.
+        self.playlist_open = False
 
         self.title = tk.Label(self, font=inter(30, True), text="Playlists")
+        self.info_frame = ViewPlaylistsInfo(self)
+        self.separator1 = HorizontalLine(self, 750)
 
-        self.table = PlaylistsTable(self)
-        playlist_records = load_playlists_overview()
-        self.table.extend(playlist_records)
+        self.separator2 = HorizontalLine(self, 750)
+        self.navigation_frame = ViewPlaylistsButtons(self)
 
-        self.create_playlist_button = Button(
-            self, "Create Playlist", command=self.create_playlist)
+        self.menu = ViewPlaylistsMenu(self)
 
-        self.title.pack(padx=10, pady=5)
-        self.table.pack(padx=10, pady=5)
-        self.create_playlist_button.pack(padx=10, pady=5)
+        self.title.pack(padx=10, pady=3)
+        self.info_frame.pack(padx=10, pady=3)
+        self.separator1.pack(padx=10, pady=3)
+        self.table.pack(padx=10, pady=3)
+        self.separator2.pack(padx=10, pady=3)
+        self.navigation_frame.pack(padx=10, pady=3)
+        master.root.config(menu=self.menu)
     
     def create_playlist(self) -> None:
         """Navigates to the create playlist tool of the app."""
         self.master.update_state(CreatePlaylist)
+    
+    def get_sort_filter(self, column: TableColumn) -> Callable:
+        """Returns the sort filter for a given column."""
+        return lambda: self.sort(getattr(SortBy, column.id))
+    
+    def sort(self, sort_by: SortBy) -> None:
+        """Sorts the playlist records as required."""
+        self.table.clear()
+        sort_functions = {
+            SortBy.id: lambda playlist: playlist[0],
+            SortBy.name: lambda playlist: playlist[1].lower(),
+            SortBy.length: lambda playlist: playlist[2],
+            SortBy.date_time_created: lambda playlist: playlist[3]
+        }
+        if sort_by == self.sort_by:
+            # Same filter reversed.
+            self.ascending = not self.ascending
+        else:
+            # Changed filter - ascending by default.
+            self.ascending = True
+        # Sorts the playlist records in place.
+        self.playlist_records.sort(
+            key=sort_functions[sort_by], reverse=not self.ascending)
+        self.table.extend(self.playlist_records)
+        self.sort_by = sort_by
+        # Only need to update the sort by display if already existent.
+        if hasattr(self, "info_frame"):
+            self.info_frame.update_sort_by()
+    
+    def home(self) -> None:
+        """Returns back to the main app."""
+        self.master.update_state()
+    
+    def open_playlist(self) -> None:
+        """Opens the toplevel for a given playlist."""
+        if self.playlist_open:
+            # Toplevel already open, do not allow another.
+            return
+        with suppress(IndexError):
+            playlist_id = int(self.table.get()[0])
+            PlaylistToplevel(self, playlist_id)
+            self.playlist_open = True
+
+
+class ViewPlaylistsMenu(tk.Menu):
+    """Toplevel menu for the view playlists part of the program."""
+
+    def __init__(self, master: ViewPlaylists) -> None:
+        super().__init__(master)
+        self.file_menu = tk.Menu(self, tearoff=False)
+        self.file_menu.add_command(
+            label="Home", font=inter(12), command=master.home)
+        self.file_menu.add_command(
+            label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+        self.add_cascade(label="File", menu=self.file_menu)
 
 
 class PlaylistsTable(Table):
@@ -535,3 +627,58 @@ class PlaylistsTable(Table):
 
     def __init__(self, master: ViewPlaylists) -> None:
         super().__init__(master, TABLE_COLUMNS)
+        self.treeview.bind(
+            "<<TreeviewSelect>>", lambda *_: master.open_playlist())
+
+
+class ViewPlaylistsInfo(tk.Frame):
+    """Provides information about the playlists and current sort by."""
+
+    def __init__(self, master: ViewPlaylists) -> None:
+        super().__init__(master)
+        self.count_label = tk.Label(
+            self, font=inter(15), width=30,
+            text=f"Total Playlists: {len(master.playlist_records)}")
+        self.sort_by_label = tk.Label(self, font=inter(15), width=30)
+        self.update_sort_by()
+        self.count_label.pack(padx=10, side="left")
+        self.sort_by_label.pack(padx=10, side="right")
+    
+    def update_sort_by(self) -> None:
+        """Updates the sort by display."""
+        arrow = "↑" if self.master.ascending else "↓"
+        self.sort_by_label.config(
+            text=f"Sorted By: {self.master.sort_by.value} ({arrow})")
+
+
+class ViewPlaylistsButtons(tk.Frame):
+    """Button navigation of the view playlists section."""
+
+    def __init__(self, master: ViewPlaylists) -> None:
+        super().__init__(master)
+        self.home_button = Button(self, "Home", command=master.home)
+        self.create_playlist_button = Button(
+            self, "Create Playlist", command=master.create_playlist)
+
+        self.home_button.pack(padx=10, pady=5, side="left")
+        self.create_playlist_button.pack(padx=10, pady=5, side="right")
+
+
+class PlaylistToplevel(tk.Toplevel):
+    """
+    Window which displays information about a given playlist in detail,
+    allowing the playlist to be edited, deleted, cleaned, and of course,
+    played.
+    """
+
+    def __init__(self, master: ViewPlaylists, playlist_id: int) -> None:
+        super().__init__(master)
+        self.data = get_playlist(playlist_id)
+        self.title(f"{main.DEFAULT_TITLE} - Playlist - {self.data.name}")
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.close)
+    
+    def close(self) -> None:
+        """Closes this playlist's toplevel."""
+        self.destroy()
+        self.master.playlist_open = False

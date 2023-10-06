@@ -19,6 +19,7 @@ class TableColumn:
     heading: str
     width: int = 250
     anchor: str = "center"
+    command: Callable = lambda: None
 
 
 class Button(tk.Button):
@@ -361,7 +362,8 @@ class Table(tk.Frame):
         for column in columns:
             self.treeview.column(
                 column.id, width=column.width, anchor=column.anchor)
-            self.treeview.heading(column.id, text=column.heading)
+            self.treeview.heading(
+                column.id, text=column.heading, command=column.command)
         
         if vertical_scrollbar:
             self.scrollbar = tk.Scrollbar(
@@ -397,3 +399,15 @@ class Table(tk.Frame):
         """Adds multiple records to the table."""
         for record in records:
             self.append(record)
+    
+    def clear(self) -> None:
+        """Removes all records from the table."""
+        self.treeview.delete(*self.treeview.get_children())
+
+    def get(self) -> tuple[str]:
+        """
+        Returns the currently selected record.
+        Warning: all original values are now strings.
+        """
+        item = self.treeview.selection()[0]
+        return self.treeview.item(item, "value")

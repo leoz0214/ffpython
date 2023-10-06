@@ -230,14 +230,27 @@ def main() -> None:
     set_up_database()
     root = tk.Tk()
     root.tk_setPalette(foreground=FG, background=BG)
-    root.protocol("WM_DELETE_WINDOW", quit_app)
+    root.protocol("WM_DELETE_WINDOW", lambda: quit_app(root))
     audio_player = AudioPlayer(root)
     audio_player.pack()
     root.mainloop()
 
 
-def quit_app() -> None:
+def quit_app(root: tk.Tk | None = None) -> None:
     """Performs required cleanup and gracefully terminates the app."""
+    # If root is indeed not passed in, it is not important.
+    # In that case, just quit.
+    # Otherwise check a few things before quitting.
+    if root is not None:
+        # Gets the child frame of the Audio Player.
+        frame = root.winfo_children()[0].winfo_children()[0]
+        if isinstance(frame, playlists.CreatePlaylist):
+            if not messagebox.askyesnocancel(
+                "Confirm Exit App",
+                    "Are you sure you would like to exit the app?\n"
+                    "The current playlist in creation will be lost."
+            ):
+                return
     sys.exit(0)
 
 

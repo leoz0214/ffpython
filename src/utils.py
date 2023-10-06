@@ -19,6 +19,8 @@ pyglet.font.add_file(str(FONT_FOLDER / "Inter.ttf"))
 # Maximum lengths to display in the GUI.
 MAX_AUDIO_NAME_DISPLAY_LENGTH = 24
 MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH = 64
+# Max playlist name display length in the table.
+MAX_PLAYLIST_NAME_DISPLAY_LENGTH = 48
 
 ALLOWED_EXTENSIONS = (
     ".mp3",

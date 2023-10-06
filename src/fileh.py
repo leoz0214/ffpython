@@ -3,9 +3,13 @@ import datetime as dt
 import json
 import pathlib
 import sqlite3
+from collections import namedtuple
 from typing import Callable, Any
 
-from utils import APP_FOLDER, ALLOWED_EXTENSIONS
+from utils import (
+    APP_FOLDER, ALLOWED_EXTENSIONS, MAX_PLAYLIST_NAME_DISPLAY_LENGTH,
+    limit_length
+)
 
 
 DATA_FOLDER = APP_FOLDER / "data"
@@ -19,6 +23,10 @@ AUDIO_TABLE = "audio"
 PLAYLISTS_TABLE = "playlists"
 # Audio/playlists table. Removes m2m.
 AUDIO_PLAYLISTS_TABLE = "audio_playlists"
+
+# Playlist object.
+Playlist = namedtuple(
+    "Playlist", ("id", "name", "description", "files", "date_time_created"))
 
 
 def create_folder(folder: pathlib.Path = DATA_FOLDER) -> None:
@@ -47,6 +55,7 @@ def update_import_folder_settings(settings: dict) -> None:
         json.dump(settings, f)
 
 
+@create_folder()
 def set_up_database() -> None:
     """Sets up the database to ensure it is ready to be used."""
     try:
@@ -140,6 +149,17 @@ def playlist_exists(name: str) -> bool:
         connection.close()
 
 
+def parse_date_time_created(utc_date_time: str) -> dt.datetime:
+    """
+    Converts a UTC time string to a local time datetime object
+    with microseconds stripped, to output as a date time created.
+    """
+    utc_date_time_created = dt.datetime.fromisoformat(utc_date_time)
+    return utc_date_time_created.replace(
+        tzinfo=dt.timezone.utc
+    ).astimezone(tz=None).replace(microsecond=0, tzinfo=None)
+
+
 def load_playlists_overview() -> list[tuple]:
     """
     Returns all basic playlist records from the database.
@@ -161,16 +181,46 @@ def load_playlists_overview() -> list[tuple]:
                 lengths[playlist_id[0]] = lengths.get(playlist_id[0], 0) + 1
             playlists = []
             for record in playlist_records:
-                length = lengths[record[0]]
-                # Converts UTC to local time for display.
-                # Also truncates microseconds.
-                utc_date_time_created = dt.datetime.fromisoformat(record[2])
-                date_time_created = utc_date_time_created.replace(
-                    tzinfo=dt.timezone.utc
-                ).astimezone(tz=None).replace(microsecond=0, tzinfo=None)
+                playlist_id = record[0]
+                name = limit_length(
+                    record[1], MAX_PLAYLIST_NAME_DISPLAY_LENGTH)
+                length = lengths[playlist_id]
+                date_time_created = parse_date_time_created(record[2])
                 playlist_overview = (
-                    record[0], record[1], length, date_time_created)
+                    playlist_id, name, length, date_time_created)
                 playlists.append(playlist_overview)
             return playlists
+    finally:
+        connection.close()
+
+
+def get_playlist(playlist_id: int) -> Playlist:
+    """Returns full playlist data, including each file in the playlist."""
+    try:
+        with sqlite3.connect(DATABASE_PATH) as connection:
+            cursor = connection.cursor()
+            record = cursor.execute(
+                f"SELECT * FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,)
+            ).fetchone()
+            playlist_id = record[0]
+            name = record[1]
+            description = record[2]
+            date_time_created = parse_date_time_created(record[3])
+            file_records = cursor.execute(
+                f"""
+                SELECT audio_id, position FROM {AUDIO_PLAYLISTS_TABLE}
+                WHERE playlist_id=?
+                """, (playlist_id,)).fetchall()
+            # Ensures file records are in the correct order/position.
+            # They should be, but just to be sure.
+            file_records.sort(key=lambda record: record[1])
+            # Gets corresponding file paths now.
+            files = [
+                cursor.execute(
+                    f"SELECT file_path FROM {AUDIO_TABLE} WHERE id=?", 
+                    (audio_id,)
+                ).fetchone()[0] for audio_id, _ in file_records]
+            return Playlist(
+                playlist_id, name, description, files, date_time_created)
     finally:
         connection.close()
