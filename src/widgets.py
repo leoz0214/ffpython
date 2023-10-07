@@ -169,6 +169,11 @@ class Textbox(tk.Frame):
         """Returns the current text."""
         # Slice off trailing new line.
         return self.textbox.get("1.0", "end")[:-1]
+    
+    @text.setter
+    def text(self, text: str) -> None:
+        """Sets the current text."""
+        self.textbox.replace("1.0", "end", text)
 
     @property
     def is_valid(self) -> bool:

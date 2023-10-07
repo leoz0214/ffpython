@@ -35,6 +35,14 @@ TABLE_COLUMNS = (
     TableColumn("length", "Length", 100),
     TableColumn("date_time_created", "Created", 175, "w")
 )
+# For the Playlist toplevel, sets a suitable playlist name font size.
+PLAYLIST_NAME_SIZE = {
+    50: 20,
+    20: 25,
+    0: 30
+}
+# Description when empty.
+DEFAULT_DESCRIPTION = "No description provided."
 
 
 class SortBy(enum.Enum):
@@ -112,7 +120,7 @@ class CreatePlaylist(tk.Frame):
         """Moves back or to another part of the program."""
         # Safeguards in case user accidentally goes back unintentionally.
         if confirm and not messagebox.askyesnocancel(
-            "Confirm Back",
+            "Confirm Cancel",
                 "Are you sure you no longer wish to create this playlist?"
         ):
             return
@@ -677,8 +685,64 @@ class PlaylistToplevel(tk.Toplevel):
         self.title(f"{main.DEFAULT_TITLE} - Playlist - {self.data.name}")
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.close)
+        # Sets an appropriate playlist name size based on name length.
+        for length, size in PLAYLIST_NAME_SIZE.items():
+            if len(self.data.name) >= length:
+                break 
+        self.name_label = tk.Label(
+            self, font=inter(size, True), text=self.data.name, wraplength=1000)
+        metadata_text = (
+            f"Playlist ID: {self.data.id} | "
+            f"Created: {self.data.date_time_created} | "
+            f"Length: {len(self.data.files)}")
+        self.metadata_label = tk.Label(
+            self, font=inter(15), text=metadata_text)
+        self.description_text = Textbox(self, width=100, height=5)
+        self.description_text.text = (
+            self.data.description or DEFAULT_DESCRIPTION)
+        self.description_text.textbox.config(state="disabled")
+
+        self.separator1 = HorizontalLine(self, 750)
+        self.files_listbox = Listbox(
+            self, width=100, height=10, horizontal_scrollbar=True)
+        # Pad all file numbers to the number of digits of the
+        # maximum file number.
+        zfill = len(str(len(self.data.files)))
+        self.files_listbox.extend(
+            f"{str(i).zfill(zfill)} | {file}"
+            for i, file in enumerate(self.data.files, 1))
+        self.separator2 = HorizontalLine(self, 750)
+        self.buttons = PlaylistButtons(self)
+
+        self.name_label.pack(padx=10, pady=3)
+        self.metadata_label.pack(padx=10, pady=3)
+        self.description_text.pack(padx=10, pady=3)
+        self.separator1.pack(padx=10, pady=3)
+        self.files_listbox.pack(padx=10, pady=3)
+        self.separator2.pack(padx=10, pady=3)
+        self.buttons.pack(padx=10, pady=3)
     
     def close(self) -> None:
         """Closes this playlist's toplevel."""
         self.destroy()
         self.master.playlist_open = False
+
+
+class PlaylistButtons(tk.Frame):
+    """
+    Buttons which allow a given playlist to be
+    edited, deleted, cleaned and played.
+    """
+
+    def __init__(self, master: PlaylistToplevel) -> None:
+        super().__init__(master)
+        self.play_button = Button(self, "Play", inter(25))
+        self.edit_button = Button(self, "Edit", inter(12))
+        self.clean_button = Button(self, "Clean", inter(12))
+        self.delete_button = Button(self, "Delete", inter(12))
+
+        self.play_button.grid(
+            row=0, column=0, rowspan=3, padx=(200, 100), pady=5, sticky="w")
+        self.edit_button.grid(row=0, column=1, padx=10, pady=2)
+        self.clean_button.grid(row=1, column=1, padx=10, pady=2)
+        self.delete_button.grid(row=2, column=1, padx=10, pady=2)
