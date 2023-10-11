@@ -4,7 +4,7 @@ import json
 import pathlib
 import sqlite3
 from collections import namedtuple
-from typing import Callable, Any
+from typing import Callable, Iterable, Any
 
 from utils import (
     APP_FOLDER, ALLOWED_EXTENSIONS, MAX_PLAYLIST_NAME_DISPLAY_LENGTH,
@@ -88,26 +88,71 @@ def set_up_database() -> None:
         connection.close()
 
 
+def insert_new_audio_files(cursor: sqlite3.Cursor, files: list[str]) -> None:
+    """Inserts all new audio files to the audio table."""
+    insert_files = [
+        file for file in files if
+        # Query - Does not exist in the table.
+        not cursor.execute(
+            f"""
+            SELECT EXISTS
+            (SELECT * FROM {AUDIO_TABLE} WHERE file_path=?) 
+            """, (file,)).fetchone()[0]
+    ]
+    cursor.executemany(
+        f"""
+        INSERT INTO {AUDIO_TABLE} (id, file_path) VALUES (NULL, ?)
+        """, ([file] for file in insert_files))
+
+
+def insert_playlist_audio_records(
+    cursor: sqlite3.Cursor, playlist_id: int, files: list[str]
+) -> None:
+    """
+    Inserts the playlist/audio records with playlist/audio ID and position.
+    """
+    audio_playlist_records = []
+    for position, file in enumerate(files):
+        audio_id = cursor.execute(
+            f"SELECT id FROM {AUDIO_TABLE} WHERE file_path=?", (file,)
+        ).fetchone()[0]
+        record = (audio_id, playlist_id, position)
+        audio_playlist_records.append(record)
+    cursor.executemany(
+        f"""
+        INSERT INTO {AUDIO_PLAYLISTS_TABLE}
+        (audio_id, playlist_id, position) VALUES (?, ?, ?)
+        """, audio_playlist_records)
+
+
+def delete_old_audio_ids(
+    cursor: sqlite3.Cursor, audio_ids: Iterable[int]
+) -> None:
+    """
+    Checks audio IDs to see if they are still referenced in the
+    Audio/Playlist table, otherwise deletes the corresponding record.
+    This function should only be on audio IDs that have been cut
+    of from a playlist after playlist update or deletion.
+    """
+    to_delete = [
+        audio_id for audio_id in audio_ids
+        if not bool(cursor.execute(
+            f"""
+            SELECT EXISTS
+            (SELECT * FROM {AUDIO_PLAYLISTS_TABLE} WHERE audio_id=?)
+            """, (audio_id,)).fetchone()[0])
+    ]
+    cursor.executemany(
+        f"DELETE FROM {AUDIO_TABLE} WHERE id=?",
+        ([audio_id] for audio_id in to_delete))
+
+
 def create_playlist(name: str, description: str, files: list[str]) -> None:
-    """Creates a playlist the given metadata and audio files."""
+    """Creates a playlist with the given metadata and audio files."""
     try:
         with sqlite3.connect(DATABASE_PATH) as connection:
             cursor = connection.cursor()
-            # Obtains Non-existent audio files.
-            insert_files = [
-                file for file in files if
-                # Query - Does not exist in the table.
-                # Using double quotes inside to handle single quotes in files.
-                not cursor.execute(
-                    f"""
-                    SELECT EXISTS
-                    (SELECT * FROM {AUDIO_TABLE} WHERE file_path=?) 
-                    """, (file,)).fetchone()[0]
-            ]
-            cursor.executemany(
-                f"""
-                INSERT INTO {AUDIO_TABLE} (id, file_path) VALUES (NULL, ?)
-                """, ([file] for file in insert_files))
+            insert_new_audio_files(cursor, files)
             date_time_created = dt.datetime.utcnow().isoformat()
             playlist_id = cursor.execute(
                 f"""
@@ -118,19 +163,48 @@ def create_playlist(name: str, description: str, files: list[str]) -> None:
             ).execute(
                 f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name=?", (name,)
             ).fetchone()[0]
-            audio_playlist_records = []
-            for position, file in enumerate(files):
-                audio_id = cursor.execute(
-                    f"SELECT id FROM {AUDIO_TABLE} WHERE file_path=?", (file,)
-                ).fetchone()[0]
-                record = (audio_id, playlist_id, position)
-                audio_playlist_records.append(record)
-            cursor.executemany(
+            insert_playlist_audio_records(cursor, playlist_id, files)
+    finally:
+        connection.close()
+
+
+def get_audio_ids(cursor: sqlite3.Cursor, playlist_id: int) -> set[int]:
+    """Returns a set of audio IDs for a given playlist."""
+    return set(
+        record[0] for record in cursor.execute(
+            f"""
+            SELECT audio_id FROM {AUDIO_PLAYLISTS_TABLE}
+            WHERE playlist_id=?
+            """, (playlist_id,)))
+
+
+def update_playlist(
+    playlist_id: int, name: str, description: str, files: list[str]
+) -> None:
+    """Updates a given playlist based on ID."""
+    try:
+        with sqlite3.connect(DATABASE_PATH) as connection:
+            cursor = connection.cursor()
+            # Updates the playlist itself.
+            cursor.execute(
                 f"""
-                INSERT INTO {AUDIO_PLAYLISTS_TABLE}
-                (audio_id, playlist_id, position)
-                VALUES (?, ?, ?)
-                """, audio_playlist_records)
+                UPDATE {PLAYLISTS_TABLE} SET
+                name=?, description=? WHERE id=?
+                """, (name, description, playlist_id))
+            insert_new_audio_files(cursor, files)
+            # Updates the playlist/audio records.
+            # Obtains old audio IDs in playlist.
+            old_audio_ids = get_audio_ids(cursor, playlist_id)
+            # Deletes old playlist/audio records.
+            cursor.execute(
+                f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
+                (playlist_id,))
+            insert_playlist_audio_records(cursor, playlist_id, files)
+            # Obtains new audio IDs in playlist.
+            new_audio_ids = get_audio_ids(cursor, playlist_id)
+            # Checks any no longer used audio IDs and deletes
+            # them if possible, to save space.
+            delete_old_audio_ids(cursor, old_audio_ids - new_audio_ids)
     finally:
         connection.close()
 

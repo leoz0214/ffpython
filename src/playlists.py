@@ -11,7 +11,8 @@ import main
 from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
-    create_playlist, playlist_exists, load_playlists_overview, get_playlist
+    create_playlist, update_playlist, playlist_exists,
+    load_playlists_overview, get_playlist
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
@@ -53,20 +54,45 @@ class SortBy(enum.Enum):
     date_time_created = "Created"
 
 
-class CreatePlaylist(tk.Frame):
-    """Allows the user to create a new playlist."""
+class PlaylistForm(tk.Frame):
+    """
+    Allows the user to create/edit a playlist.
+    The technical database term for create or update is: UPSERT.
+    Pass in the playlist ID for edit mode, or else create a new playlist.
+    """
 
-    def __init__(self, master: "main.AudioPlayer") -> None:
+    def __init__(
+        self, master: "main.AudioPlayer", playlist_id: int | None = None
+    ) -> None:
         super().__init__(master)
-        master.root.title(f"{main.DEFAULT_TITLE} - Playlists - Create")
+        # Convenient Boolean to indicate whether or not this is create mode.
+        self.new = playlist_id is None
+        # 'create' or 'edit' used for string embedding.
+        self.keyword = "create" if self.new else "edit"
+        self.playlist_id = playlist_id
+        if self.new:
+            master.root.title(f"{main.DEFAULT_TITLE} - Playlist - Create")
+        else:
+            # Add playlist ID in title to avoid ambiguity.
+            master.root.title(
+                f"{main.DEFAULT_TITLE} - Playlist - Edit ({playlist_id})")
+
         self.title = tk.Label(
-            self, font=inter(30, True), text="Create Playlist")
-        self.metadata_frame = CreatePlaylistMetadataFrame(self)
+            self, font=inter(30, True),
+            text=f"{self.keyword.title()} Playlist")
+        if self.new:
+            self.metadata_frame = PlaylistFormMetadataFrame(self)
+            self.audio_frame = PlaylistFormAudioFrame(self)
+        else:
+            # Fill in fields with current data.
+            initial_data = get_playlist(self.playlist_id)
+            self.metadata_frame = PlaylistFormMetadataFrame(
+                self, initial_data.name, initial_data.description)
+            self.audio_frame = PlaylistFormAudioFrame(self, initial_data.files)
         self.separator = HorizontalLine(self, width=750)
-        self.audio_frame = CreatePlaylistAudioFrame(self)
         self.separator2 = HorizontalLine(self, width=750)
-        self.buttons = CreatePlaylistButtons(self)
-        self.menu = CreatePlaylistMenu(self)
+        self.buttons = PlaylistFormButtons(self)
+        self.menu = PlaylistFormMenu(self)
 
         master.root.bind("<Control-o>", lambda *_: self.audio_frame.add_file())
         master.root.bind(
@@ -80,8 +106,8 @@ class CreatePlaylist(tk.Frame):
         self.buttons.pack(padx=10, pady=2)
         master.root.config(menu=self.menu)
     
-    def create(self) -> None:
-        """Creates the playlist upon confirmation."""
+    def upsert(self) -> None:
+        """Creates or updates the playlist upon confirmation."""
         name = self.metadata_frame.name
         if not name:
             messagebox.showerror("Empty Name", "Please enter a playlist name.")
@@ -96,24 +122,32 @@ class CreatePlaylist(tk.Frame):
                     "Please ensure the playlist "
                     f"has at least {MIN_PLAYLIST_LENGTH} files.")
             return
-        if playlist_exists(name):
+        if playlist_exists(name) and (
+            self.new or get_playlist(self.playlist_id).name != name
+        ):
             messagebox.showerror(
                 "Existing Playlist",
-                    "A playlist with the same name already exists.")
+                    "A playlist with the same name (different ID) "
+                    "already exists.")
             return
         if not messagebox.askyesnocancel(
-            "Confirm Playlist Creation",
-                "Are you sure you would like to create this playlist?"
+            f"Confirm Playlist {self.keyword.title()}",
+                f"Are you sure you would like to {self.keyword} this playlist?"
         ):
             return
-        # Attempts playlist creation, shows error message if failed.
+        # Attempts playlist create/update, shows error message if failed.
         try:
-            create_playlist(name, description, files)
-        except Exception as e:
+            if self.new:
+                create_playlist(name, description, files)
+            else:
+                update_playlist(self.playlist_id, name, description, files)
+        except TimeoutError as e:
             messagebox.showerror(
-                "Error", f"Failed to create the playlist: {e}")
+                "Error", f"Failed to {self.keyword} the playlist: {e}")
             return
-        messagebox.showinfo("Success", "Playlist successfully created.")
+        messagebox.showinfo(
+            "Success",
+                f"Playlist successfully {self.keyword.removesuffix('e')}ed.")
         self.change(confirm=False)
     
     def change(self, command: Callable = None, confirm: bool = True):
@@ -121,7 +155,8 @@ class CreatePlaylist(tk.Frame):
         # Safeguards in case user accidentally goes back unintentionally.
         if confirm and not messagebox.askyesnocancel(
             "Confirm Cancel",
-                "Are you sure you no longer wish to create this playlist?"
+                "Are you sure you no longer wish to "
+                f"{self.keyword} this playlist?"
         ):
             return
         for binding in ("Control-o", "control-i"):
@@ -133,10 +168,10 @@ class CreatePlaylist(tk.Frame):
             command()
     
 
-class CreatePlaylistMenu(tk.Menu):
-    """Toplevel menu for the create playlist section of the program.."""
+class PlaylistFormMenu(tk.Menu):
+    """Toplevel menu for the playlist form of the program.."""
 
-    def __init__(self, master: CreatePlaylist) -> None:
+    def __init__(self, master: PlaylistForm) -> None:
         super().__init__(master)
         self.file_menu = tk.Menu(self, tearoff=False)
         self.file_menu.add_command(
@@ -160,25 +195,30 @@ class CreatePlaylistMenu(tk.Menu):
         self.add_cascade(label="Playlists", menu=self.playlists_menu)
 
 
-class CreatePlaylistMetadataFrame(tk.Frame):
+class PlaylistFormMetadataFrame(tk.Frame):
     """Handles the name and description of a playlist."""
 
-    def __init__(self, master: CreatePlaylist) -> None:
+    def __init__(
+        self, master: PlaylistForm, name: str = "", description: str = ""
+    ) -> None:
         super().__init__(master)
         self.name_label = tk.Label(
             self, font=inter(15), text="Name of playlist:")
-        n = 1
-        # Finds the first Playlist {n} name not in use.
-        while playlist_exists(f"Playlist {n}"):
-            n += 1
+        if not name:
+            n = 1
+            # Finds the first Playlist {n} name not in use.
+            while playlist_exists(f"Playlist {n}"):
+                n += 1
+            name = f"Playlist {n}"
         self.name_entry = StringEntry(
             self, width=44, max_length=MAX_PLAYLIST_NAME_LENGTH,
-            initial_value=f"Playlist {n}")
+            initial_value=name)
         
         self.description_label = tk.Label(
             self, font=inter(15), text="Description (optional):")
         self.description_entry = Textbox(
             self, height=5, max_length=MAX_PLAYLIST_DESCRIPTION_LENGTH)
+        self.description_entry.textbox.insert("1.0", description)
     
         self.name_label.grid(row=0, column=0, padx=5, pady=3, sticky="e")
         self.name_entry.grid(row=0, column=1, padx=5, pady=3, sticky="w")
@@ -197,18 +237,20 @@ class CreatePlaylistMetadataFrame(tk.Frame):
             :MAX_PLAYLIST_DESCRIPTION_LENGTH]
 
 
-class CreatePlaylistAudioFrame(tk.Frame):
+class PlaylistFormAudioFrame(tk.Frame):
     """Handles the input of the audio files to include in the playlist."""
 
-    def __init__(self, master: CreatePlaylist) -> None:
+    def __init__(self, master: PlaylistForm, files: list[str] = None) -> None:
         super().__init__(master)
         self.listbox = Listbox(self, height=10, horizontal_scrollbar=True)
         self.add_file_button = Button(self, "Add File", command=self.add_file)
         self.import_folder_button = Button(
             self, "Import Folder", command=self.import_folder)
         self.file_handling_frame = FileHandlingFrame(self)
-        self.file_count_label = tk.Label(self, font=inter(20), text="Files: 0")
-        self.files = []
+        self.files = files or []
+        self.file_count_label = tk.Label(
+            self, font=inter(20), text=f"Files: {len(self.files)}")
+        self.listbox.extend(self.files)
         self.opened_import_window = False
     
         self.listbox.listbox.bind(
@@ -228,7 +270,7 @@ class CreatePlaylistAudioFrame(tk.Frame):
         Decorator to validate a user event,
         and refuses adding more files if the limit is reached.
         """
-        def wrapper(self: "CreatePlaylistAudioFrame") -> None:
+        def wrapper(self: "PlaylistFormAudioFrame") -> None:
             # Cannot override toplevel window. Do not allow
             # events from the main window during this.
             if self.opened_import_window:
@@ -273,10 +315,11 @@ class ImportFolderToplevel(tk.Toplevel):
     with various configurations.
     """
 
-    def __init__(self, master: CreatePlaylistAudioFrame) -> None:
+    def __init__(self, master: PlaylistFormAudioFrame) -> None:
         super().__init__(master)
         self.title(
-            f"{main.DEFAULT_TITLE} - Playlists - Create - Import Folder")
+            f"{main.DEFAULT_TITLE} - Playlists - "
+            f"{master.master.keyword.title()} - Import Folder")
         self.grab_set()
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -459,7 +502,7 @@ class FileHandlingFrame(tk.Frame):
     in the playlist or move it up or down.
     """
 
-    def __init__(self, master: CreatePlaylistAudioFrame) -> None:
+    def __init__(self, master: PlaylistFormAudioFrame) -> None:
         super().__init__(master)
         self.delete_button = Button(
             self, "Delete", inter(12), command=self.delete)
@@ -510,18 +553,18 @@ class FileHandlingFrame(tk.Frame):
         self.move_down_button.config(state=bool_to_state(index < size - 1))
 
 
-class CreatePlaylistButtons(tk.Frame):
-    """Bottom buttons for the create playlist."""
+class PlaylistFormButtons(tk.Frame):
+    """Bottom buttons for the playlist form."""
 
-    def __init__(self, master: CreatePlaylist) -> None:
+    def __init__(self, master: PlaylistForm) -> None:
         super().__init__(master)
         self.cancel_button = Button(
             self, "Back", inter(20), command=master.change)
-        self.create_button = Button(
-            self, "Create", inter(20), command=master.create)
+        self.upsert_button = Button(
+            self, master.keyword.title(), inter(20), command=master.upsert)
         
         self.cancel_button.pack(side="left", padx=5)
-        self.create_button.pack(side="right", padx=5)
+        self.upsert_button.pack(side="right", padx=5)
 
 
 
@@ -568,7 +611,7 @@ class ViewPlaylists(tk.Frame):
     
     def create_playlist(self) -> None:
         """Navigates to the create playlist tool of the app."""
-        self.master.update_state(CreatePlaylist)
+        self.master.update_state(PlaylistForm)
     
     def get_sort_filter(self, column: TableColumn) -> Callable:
         """Returns the sort filter for a given column."""
@@ -722,6 +765,13 @@ class PlaylistToplevel(tk.Toplevel):
         self.separator2.pack(padx=10, pady=3)
         self.buttons.pack(padx=10, pady=3)
     
+    def edit(self) -> None:
+        """Proceeds to the playlist form to edit this playlist."""
+        # Destroys toplevel and closes view playlists.
+        self.destroy()
+        self.master.master.update_state(
+            lambda master: PlaylistForm(master, self.data.id))
+    
     def close(self) -> None:
         """Closes this playlist's toplevel."""
         self.destroy()
@@ -737,7 +787,7 @@ class PlaylistButtons(tk.Frame):
     def __init__(self, master: PlaylistToplevel) -> None:
         super().__init__(master)
         self.play_button = Button(self, "Play", inter(25))
-        self.edit_button = Button(self, "Edit", inter(12))
+        self.edit_button = Button(self, "Edit", inter(12), command=master.edit)
         self.clean_button = Button(self, "Clean", inter(12))
         self.delete_button = Button(self, "Delete", inter(12))
 
@@ -746,3 +796,4 @@ class PlaylistButtons(tk.Frame):
         self.edit_button.grid(row=0, column=1, padx=10, pady=2)
         self.clean_button.grid(row=1, column=1, padx=10, pady=2)
         self.delete_button.grid(row=2, column=1, padx=10, pady=2)
+    

@@ -5,6 +5,7 @@ import time
 import tkinter as tk
 from contextlib import suppress
 from tkinter import messagebox
+from typing import Callable
 
 import idle
 import loaded
@@ -80,7 +81,7 @@ class AudioPlayer(tk.Frame):
             target=lambda: self.play(from_seek=from_seek), daemon=True)
         playback_thread.start()
     
-    def update_state(self, frame: tk.Frame | None = None) -> None:
+    def update_state(self, frame: tk.Frame | Callable | None = None) -> None:
         """
         Moves to a given frame, or to the idle frame if no audio is loaded,
         or else, displays the main frame.
@@ -216,7 +217,7 @@ class AudioPlayer(tk.Frame):
         if self.current is not None:
             # Stop current playback first.
             self.stop()
-        self.update_state(playlists.CreatePlaylist)
+        self.update_state(playlists.PlaylistForm)
     
     def view_playlists(self) -> None:
         """Navigate to the playlists part of the app."""
@@ -244,11 +245,11 @@ def quit_app(root: tk.Tk | None = None) -> None:
     if root is not None:
         # Gets the child frame of the Audio Player.
         frame = root.winfo_children()[0].winfo_children()[0]
-        if isinstance(frame, playlists.CreatePlaylist):
+        if isinstance(frame, playlists.PlaylistForm):
             if not messagebox.askyesnocancel(
                 "Confirm Exit App",
                     "Are you sure you would like to exit the app?\n"
-                    "The current playlist in creation will be lost."
+                    "The current playlist form will be lost."
             ):
                 return
     sys.exit(0)
@@ -256,3 +257,4 @@ def quit_app(root: tk.Tk | None = None) -> None:
 
 if __name__ == "__main__":
     main()
+
