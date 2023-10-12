@@ -11,7 +11,7 @@ import main
 from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
-    create_playlist, update_playlist, playlist_exists,
+    create_playlist, update_playlist, delete_playlist, playlist_exists,
     load_playlists_overview, get_playlist
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
@@ -141,7 +141,7 @@ class PlaylistForm(tk.Frame):
                 create_playlist(name, description, files)
             else:
                 update_playlist(self.playlist_id, name, description, files)
-        except TimeoutError as e:
+        except Exception as e:
             messagebox.showerror(
                 "Error", f"Failed to {self.keyword} the playlist: {e}")
             return
@@ -247,7 +247,7 @@ class PlaylistFormAudioFrame(tk.Frame):
         self.import_folder_button = Button(
             self, "Import Folder", command=self.import_folder)
         self.file_handling_frame = FileHandlingFrame(self)
-        self.files = files or []
+        self.files = list(map(pathlib.Path, files)) or []
         self.file_count_label = tk.Label(
             self, font=inter(20), text=f"Files: {len(self.files)}")
         self.listbox.extend(self.files)
@@ -317,9 +317,7 @@ class ImportFolderToplevel(tk.Toplevel):
 
     def __init__(self, master: PlaylistFormAudioFrame) -> None:
         super().__init__(master)
-        self.title(
-            f"{main.DEFAULT_TITLE} - Playlists - "
-            f"{master.master.keyword.title()} - Import Folder")
+        self.title(f"{master.master.master.master.title()} - Import Folder")
         self.grab_set()
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -360,7 +358,7 @@ class ImportFolderToplevel(tk.Toplevel):
     
     def select_folder(self) -> None:
         """Allows the user to select the import folder."""
-        folder = filedialog.askdirectory(mustexist=True)
+        folder = filedialog.askdirectory(mustexist=True, parent=self)
         if not folder:
             # Cancelled
             return
@@ -377,20 +375,22 @@ class ImportFolderToplevel(tk.Toplevel):
             if not files:
                 messagebox.showerror(
                     "Nothing",
-                        "No audio files found with the given criteria.")
+                        "No audio files found with the given criteria.",
+                        parent=self)
                 return
         except RuntimeError:
             messagebox.showerror(
                 "Error",
                     f"Maximum paths scanned: {MAX_PATHS_TO_SCAN}. "
-                    "Please reduce the search scope.")
+                    "Please reduce the search scope.", parent=self)
             return
         existing_files = set(self.master.files)
         new = [file for file in files if file not in existing_files]
         if not new:
             messagebox.showerror(
                 "Nothing",
-                    "No new audio files found with the given criteria.")
+                    "No new audio files found with the given criteria.",
+                    parent=self)
             return
         new_file_count = len(existing_files) + len(new)
         if new_file_count > MAX_PLAYLIST_LENGTH:
@@ -398,7 +398,7 @@ class ImportFolderToplevel(tk.Toplevel):
                 "Error",
                     "This import will bring the number of files to "
                     f"{new_file_count}, which exceeds the maximum allowed "
-                    f"number of files: {MAX_PLAYLIST_LENGTH}")
+                    f"number of files: {MAX_PLAYLIST_LENGTH}", parent=self)
             return
         already_added_count = len(files) - len(new)
         if already_added_count and not messagebox.askyesnocancel(
@@ -406,7 +406,7 @@ class ImportFolderToplevel(tk.Toplevel):
                 f"{already_added_count} file"
                 f"{'s' if already_added_count > 1 else ''} "
                 f"{'have' if already_added_count > 1 else 'has'} already been "
-                "added, and will not be added again. Proceed?"
+                "added, and will not be added again. Proceed?", parent=self
         ):
             return
         self.master.files.extend(new)
@@ -654,6 +654,15 @@ class ViewPlaylists(tk.Frame):
             playlist_id = int(self.table.get()[0])
             PlaylistToplevel(self, playlist_id)
             self.playlist_open = True
+    
+    def remove_playlist_from_table(self, playlist_id: int) -> None:
+        """Removes a playlist from the table/list."""
+        index = next(
+            i for i, value in enumerate(self.playlist_records)
+            if value[0] == playlist_id)
+        self.table.pop(index)
+        self.playlist_records.pop(index)
+        self.info_frame.update_total_playlists()
 
 
 class ViewPlaylistsMenu(tk.Menu):
@@ -700,6 +709,11 @@ class ViewPlaylistsInfo(tk.Frame):
         arrow = "↑" if self.master.ascending else "↓"
         self.sort_by_label.config(
             text=f"Sorted By: {self.master.sort_by.value} ({arrow})")
+    
+    def update_total_playlists(self) -> None:
+        """Updates the total number of playlists."""
+        self.count_label.config(
+            text=f"Total Playlists: {len(self.master.playlist_records)}")
 
 
 class ViewPlaylistsButtons(tk.Frame):
@@ -734,12 +748,8 @@ class PlaylistToplevel(tk.Toplevel):
                 break 
         self.name_label = tk.Label(
             self, font=inter(size, True), text=self.data.name, wraplength=1000)
-        metadata_text = (
-            f"Playlist ID: {self.data.id} | "
-            f"Created: {self.data.date_time_created} | "
-            f"Length: {len(self.data.files)}")
-        self.metadata_label = tk.Label(
-            self, font=inter(15), text=metadata_text)
+        self.metadata_label = tk.Label(self, font=inter(15))
+        self.update_metadata_text()
         self.description_text = Textbox(self, width=100, height=5)
         self.description_text.text = (
             self.data.description or DEFAULT_DESCRIPTION)
@@ -748,12 +758,7 @@ class PlaylistToplevel(tk.Toplevel):
         self.separator1 = HorizontalLine(self, 750)
         self.files_listbox = Listbox(
             self, width=100, height=10, horizontal_scrollbar=True)
-        # Pad all file numbers to the number of digits of the
-        # maximum file number.
-        zfill = len(str(len(self.data.files)))
-        self.files_listbox.extend(
-            f"{str(i).zfill(zfill)} | {file}"
-            for i, file in enumerate(self.data.files, 1))
+        self.update_files_listbox()
         self.separator2 = HorizontalLine(self, 750)
         self.buttons = PlaylistButtons(self)
 
@@ -772,6 +777,94 @@ class PlaylistToplevel(tk.Toplevel):
         self.master.master.update_state(
             lambda master: PlaylistForm(master, self.data.id))
     
+    def delete(self, confirm: bool = True) -> None:
+        """Deletes the playlist, perhaps upon user confirmation."""
+        if confirm and not messagebox.askyesnocancel(
+            "Confirm Delete Playlist",
+                "Are you sure you would like to delete this playlist?\n"
+                "Once deleted, a playlist CANNOT be restored.",
+            icon="warning", parent=self
+        ):
+            return
+        try:
+            delete_playlist(self.data.id)
+        except Exception as e:
+            messagebox.showerror(
+                "Error", f"Failed to delete the playlist: {e}", parent=self)
+            return
+        messagebox.showinfo(
+            "Success", "Successfully deleted the playlist.", parent=self)
+        self.close()
+        self.master.remove_playlist_from_table(self.data.id)
+    
+    def clean(self) -> None:
+        """
+        Removes no longer existing files in a playlist upon confirmation.
+        If the playlist length drops below 2, ask user to confirm delete
+        the playlist since playlists shorter than length 2 are disallowed.
+        """
+        if not messagebox.askyesnocancel(
+            "Confirm Clean Playlist",
+                "Are you sure you would like to remove no longer existing "
+                "files from the playlist?", parent=self
+        ):
+            return
+        # Retrieves an up-to-date version of the data in case
+        # of changes from another process.
+        self.data = get_playlist(self.data.id)
+        old_length = len(self.data.files)
+        # Determines new files.
+        files = [
+            file for file in self.data.files if pathlib.Path(file).is_file()]
+        new_length = len(files)
+        if new_length == old_length:
+            # No length change, no action needed.
+            messagebox.showinfo(
+                "No Missing Files",
+                    "All files in the playlist still exist.", parent=self)
+            return
+        if len(files) < MIN_PLAYLIST_LENGTH:
+            if not messagebox.askyesnocancel(
+                "Confirm Delete Playlist",
+                    "Upon cleaning, the playlist length falls to "
+                    f"{new_length}, below the minimum length of "
+                    f"{MIN_PLAYLIST_LENGTH}.\nTherefore, the playlist can "
+                    "only be deleted. Are you sure you would like to proceed?",
+                icon="warning", parent=self
+            ):
+                return
+            self.delete(confirm=False)
+            return
+        # Simply updates data but changes the files.
+        update_playlist(
+            self.data.id, self.data.name, self.data.description, files)
+        # Yet again updates data.
+        self.data = get_playlist(self.data.id)
+        messagebox.showinfo(
+            "Success",
+                "The playlist was successfully cleaned and reduced from "
+                f"{old_length} to {new_length} files.", parent=self)
+        self.update_metadata_text()
+        self.update_files_listbox()
+
+    def update_metadata_text(self) -> None:
+        """Updates the metadata information label."""
+        metadata_text = (
+            f"Playlist ID: {self.data.id} | "
+            f"Created: {self.data.date_time_created} | "
+            f"Length: {len(self.data.files)}")
+        self.metadata_label.config(text=metadata_text)
+    
+    def update_files_listbox(self) -> None:
+        """Updates the listbox of playlist files."""
+        self.files_listbox.clear()
+        # Pad all file numbers to the number of digits of the
+        # maximum file number.
+        zfill = len(str(len(self.data.files)))
+        self.files_listbox.extend(
+            f"{str(i).zfill(zfill)} | {file}"
+            for i, file in enumerate(self.data.files, 1))
+    
     def close(self) -> None:
         """Closes this playlist's toplevel."""
         self.destroy()
@@ -788,8 +881,10 @@ class PlaylistButtons(tk.Frame):
         super().__init__(master)
         self.play_button = Button(self, "Play", inter(25))
         self.edit_button = Button(self, "Edit", inter(12), command=master.edit)
-        self.clean_button = Button(self, "Clean", inter(12))
-        self.delete_button = Button(self, "Delete", inter(12))
+        self.clean_button = Button(
+            self, "Clean", inter(12), command=master.clean)
+        self.delete_button = Button(
+            self, "Delete", inter(12), command=master.delete)
 
         self.play_button.grid(
             row=0, column=0, rowspan=3, padx=(200, 100), pady=5, sticky="w")

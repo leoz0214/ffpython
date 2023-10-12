@@ -258,6 +258,10 @@ class Listbox(tk.Frame):
         """Removes the element at the given index."""
         self.listbox.delete(index)
     
+    def clear(self) -> None:
+        """Empties the listbox."""
+        self.listbox.delete(0, "end")
+     
     def swap(
         self, index1: int, index2: int, keep_select: bool = True
     ) -> None:
@@ -416,3 +420,8 @@ class Table(tk.Frame):
         """
         item = self.treeview.selection()[0]
         return self.treeview.item(item, "value")
+
+    def pop(self, index: int) -> None:
+        """Deletes the record at the given index."""
+        item = self.treeview.get_children()[index]
+        self.treeview.delete(item)

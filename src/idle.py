@@ -13,9 +13,14 @@ class IdleFrame(tk.Frame):
         super().__init__(master)
         master.root.title(main.DEFAULT_TITLE)
         self.menu = IdleMenu(self)
+        self.title = tk.Label(self, font=inter(60, True), text="FFPython")
+        self.subtitle = tk.Label(
+            self, font=inter(15, italic=True), text="Powered by FFmpeg")
         self.open_file_button = Button(
             self, "Open File", font=inter(25), command=master.open)
-        self.open_file_button.pack(padx=100, pady=100)
+        self.title.pack(padx=100, pady=(25, 0))
+        self.subtitle.pack(padx=100, pady=(0, 25))
+        self.open_file_button.pack(padx=100, pady=25)
         master.root.config(menu=self.menu)
 
 

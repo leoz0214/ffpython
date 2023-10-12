@@ -209,6 +209,25 @@ def update_playlist(
         connection.close()
 
 
+def delete_playlist(playlist_id: int) -> None:
+    """Deletes a given playlist by ID."""
+    try:
+        with sqlite3.connect(DATABASE_PATH) as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                f"DELETE FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,))
+            # Get audio IDs of playlist to delete.
+            audio_ids = get_audio_ids(cursor, playlist_id)
+            cursor.execute(
+                f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
+                (playlist_id,))
+            # Deletes any audio records which no longer have any use
+            # upon deleting the current playlist.
+            delete_old_audio_ids(cursor, audio_ids)
+    finally:
+        connection.close()
+
+
 def playlist_exists(name: str) -> bool:
     """Returns True if a playlist with a given name exists, else False."""
     try:
