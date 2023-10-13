@@ -257,4 +257,3 @@ def quit_app(root: tk.Tk | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

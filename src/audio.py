@@ -25,7 +25,7 @@ get_memory_usage_alt = ctypes.CDLL(
 class Audio:
     """
     Represents an audio object in the app, providing key information
-    Such as file path, name and metadata including duration.
+    such as file path, name and metadata including duration.
     Also allows the audio to be played, paused, stopped, sought etc.
     """
 
@@ -170,7 +170,7 @@ class Audio:
     
     @property
     def memory_usage(self) -> int:
-        """Current number of Kilobytes used by the process."""
+        """Current number of bytes used by the process."""
         if not self.process:
             # No process, no memory!
             return 0

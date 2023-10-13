@@ -62,7 +62,8 @@ class PlaylistForm(tk.Frame):
     """
 
     def __init__(
-        self, master: "main.AudioPlayer", playlist_id: int | None = None
+        self, master: "main.AudioPlayer", playlist_id: int | None = None,
+        from_view_playlists: bool = False
     ) -> None:
         super().__init__(master)
         # Convenient Boolean to indicate whether or not this is create mode.
@@ -70,6 +71,8 @@ class PlaylistForm(tk.Frame):
         # 'create' or 'edit' used for string embedding.
         self.keyword = "create" if self.new else "edit"
         self.playlist_id = playlist_id
+        # Return to view playlists if called from there, makes most sense.
+        self.from_view_playlists = from_view_playlists
         if self.new:
             master.root.title(f"{main.DEFAULT_TITLE} - Playlist - Create")
         else:
@@ -154,16 +157,19 @@ class PlaylistForm(tk.Frame):
         """Moves back or to another part of the program."""
         # Safeguards in case user accidentally goes back unintentionally.
         if confirm and not messagebox.askyesnocancel(
-            "Confirm Cancel",
-                "Are you sure you no longer wish to "
-                f"{self.keyword} this playlist?"
+            "Confirm Back",
+                "Are you sure you would no longer like to "
+                f"{self.keyword} this playlist? All unsaved data will be lost."
         ):
             return
         for binding in ("Control-o", "control-i"):
             self.master.root.unbind(f"<{binding}>")
         if command is None:
             # By default, return to the main audio player.
-            self.master.update_state()
+            if self.from_view_playlists:
+                self.master.view_playlists()
+            else:
+                self.master.update_state()
         else:
             command()
     
@@ -247,7 +253,7 @@ class PlaylistFormAudioFrame(tk.Frame):
         self.import_folder_button = Button(
             self, "Import Folder", command=self.import_folder)
         self.file_handling_frame = FileHandlingFrame(self)
-        self.files = list(map(pathlib.Path, files)) or []
+        self.files = list(map(pathlib.Path, files or []))
         self.file_count_label = tk.Label(
             self, font=inter(20), text=f"Files: {len(self.files)}")
         self.listbox.extend(self.files)
@@ -343,6 +349,8 @@ class ImportFolderToplevel(tk.Toplevel):
 
         self.import_button = Button(
             self, "Import", command=self.import_folder, state="disabled")
+        
+        self.menu = ImportFolderToplevelMenu(self)
 
         self.title_label.grid(row=0, column=0, padx=10, pady=10, columnspan=3)
         self.folder_label.grid(row=1, column=0, padx=5, pady=5, sticky="e")
@@ -355,6 +363,7 @@ class ImportFolderToplevel(tk.Toplevel):
         self.scope_frame.grid(row=3, column=1, columnspan=2, sticky="nw")
         self.import_button.grid(
             row=4, column=0, columnspan=3, padx=10, pady=10)
+        self.config(menu=self.menu)
     
     def select_folder(self) -> None:
         """Allows the user to select the import folder."""
@@ -446,6 +455,21 @@ class ImportFolderToplevel(tk.Toplevel):
         """Closes the window."""
         self.destroy()
         self.master.opened_import_window = False
+
+
+class ImportFolderToplevelMenu(tk.Menu):
+    """Menu for the import folder toplevel."""
+
+    def __init__(self, master: ImportFolderToplevel) -> None:
+        super().__init__(master)
+        self.file_menu = tk.Menu(self, tearoff=False)
+        self.file_menu.add_command(
+            label="Select (Ctrl+O)", font=inter(12),
+            command=master.select_folder)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(
+            label="Cancel (Alt+F4)", font=inter(12), command=master.close)
+        self.add_cascade(label="File", menu=self.file_menu)
 
 
 class FileTypesFrame(tk.Frame):
@@ -611,7 +635,8 @@ class ViewPlaylists(tk.Frame):
     
     def create_playlist(self) -> None:
         """Navigates to the create playlist tool of the app."""
-        self.master.update_state(PlaylistForm)
+        self.master.update_state(
+            lambda master: PlaylistForm(master, from_view_playlists=True))
     
     def get_sort_filter(self, column: TableColumn) -> Callable:
         """Returns the sort filter for a given column."""
@@ -676,6 +701,12 @@ class ViewPlaylistsMenu(tk.Menu):
         self.file_menu.add_command(
             label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
         self.add_cascade(label="File", menu=self.file_menu)
+
+        self.playlists_menu = tk.Menu(self, tearoff=False)
+        self.playlists_menu.add_command(
+            label="Create", font=inter(12),
+            command=master.master.create_playlist)
+        self.add_cascade(label="Playlists", menu=self.playlists_menu)
 
 
 class PlaylistsTable(Table):
@@ -775,7 +806,7 @@ class PlaylistToplevel(tk.Toplevel):
         # Destroys toplevel and closes view playlists.
         self.destroy()
         self.master.master.update_state(
-            lambda master: PlaylistForm(master, self.data.id))
+            lambda master: PlaylistForm(master, self.data.id, True))
     
     def delete(self, confirm: bool = True) -> None:
         """Deletes the playlist, perhaps upon user confirmation."""
