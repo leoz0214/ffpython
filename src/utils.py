@@ -22,14 +22,6 @@ MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH = 64
 # Max playlist name display length in the table.
 MAX_PLAYLIST_NAME_DISPLAY_LENGTH = 48
 
-ALLOWED_EXTENSIONS = (
-    ".mp3",
-    ".wav",
-    ".ogg",
-    ".oga",
-    ".m4a",
-    ".mp4"
-)
 ALLOWED_EXTENSIONS_DICT = {
     ".mp3": "MP3",
     ".wav": "WAV",
@@ -38,6 +30,7 @@ ALLOWED_EXTENSIONS_DICT = {
     ".m4a": "M4A",
     ".mp4": "MP4 (Audio only)"
 }
+ALLOWED_EXTENSIONS = tuple(ALLOWED_EXTENSIONS_DICT)
 
 
 def inter(size: int, bold: bool = False, italic: bool = False) -> tuple:
@@ -103,7 +96,7 @@ def open_audio_file() -> str | None:
     if not file_path:
         # Cancelled.
         return None
-    if not file_path.endswith(ALLOWED_EXTENSIONS):
+    if not file_path.lower().endswith(ALLOWED_EXTENSIONS):
         # Bypassed file extension filter, not allowed.
         messagebox.showerror(
             "Error",

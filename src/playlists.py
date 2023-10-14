@@ -12,7 +12,7 @@ from colours import FG
 from fileh import (
     get_import_folder_settings, update_import_folder_settings,
     create_playlist, update_playlist, delete_playlist, playlist_exists,
-    load_playlists_overview, get_playlist
+    load_playlists_overview, get_playlist, PlaylistNotFound
 )
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
@@ -44,6 +44,12 @@ PLAYLIST_NAME_SIZE = {
 }
 # Description when empty.
 DEFAULT_DESCRIPTION = "No description provided."
+# Common error message whenever a playlist no longer exists.
+MISSING_PLAYLIST_ERROR = {
+    "title": "Missing Playlist",
+    "message": "The target playlist was not found in the database.\n"
+               "Perhaps it has been deleted."
+}
 
 
 class SortBy(enum.Enum):
@@ -68,11 +74,20 @@ class PlaylistForm(tk.Frame):
         super().__init__(master)
         # Convenient Boolean to indicate whether or not this is create mode.
         self.new = playlist_id is None
+        self.playlist_id = playlist_id
+        self.from_view_playlists = from_view_playlists
         # 'create' or 'edit' used for string embedding.
         self.keyword = "create" if self.new else "edit"
-        self.playlist_id = playlist_id
+        if not self.new:
+            try:
+                initial_data = get_playlist(self.playlist_id)
+            except PlaylistNotFound:
+                # Playlist no longer exists,
+                # likely deleted from another process.
+                self.change(confirm=False)
+                messagebox.showerror(**MISSING_PLAYLIST_ERROR)
+                return
         # Return to view playlists if called from there, makes most sense.
-        self.from_view_playlists = from_view_playlists
         if self.new:
             master.root.title(f"{main.DEFAULT_TITLE} - Playlist - Create")
         else:
@@ -88,7 +103,6 @@ class PlaylistForm(tk.Frame):
             self.audio_frame = PlaylistFormAudioFrame(self)
         else:
             # Fill in fields with current data.
-            initial_data = get_playlist(self.playlist_id)
             self.metadata_frame = PlaylistFormMetadataFrame(
                 self, initial_data.name, initial_data.description)
             self.audio_frame = PlaylistFormAudioFrame(self, initial_data.files)
@@ -125,6 +139,10 @@ class PlaylistForm(tk.Frame):
                     "Please ensure the playlist "
                     f"has at least {MIN_PLAYLIST_LENGTH} files.")
             return
+        if not self.new and not playlist_exists(self.playlist_id, "id"):
+            self.change(confirm=False)
+            messagebox.showerror(**MISSING_PLAYLIST_ERROR)
+            return
         if playlist_exists(name) and (
             self.new or get_playlist(self.playlist_id).name != name
         ):
@@ -137,6 +155,11 @@ class PlaylistForm(tk.Frame):
             f"Confirm Playlist {self.keyword.title()}",
                 f"Are you sure you would like to {self.keyword} this playlist?"
         ):
+            return
+        # Check one last time playlist exists.
+        if not self.new and not playlist_exists(self.playlist_id, "id"):
+            self.change(confirm=False)
+            messagebox.showerror(**MISSING_PLAYLIST_ERROR)
             return
         # Attempts playlist create/update, shows error message if failed.
         try:
@@ -153,7 +176,7 @@ class PlaylistForm(tk.Frame):
                 f"Playlist successfully {self.keyword.removesuffix('e')}ed.")
         self.change(confirm=False)
     
-    def change(self, command: Callable = None, confirm: bool = True):
+    def change(self, command: Callable = None, confirm: bool = True) -> None:
         """Moves back or to another part of the program."""
         # Safeguards in case user accidentally goes back unintentionally.
         if confirm and not messagebox.askyesnocancel(
@@ -607,29 +630,40 @@ class ViewPlaylists(tk.Frame):
             column.command = self.get_sort_filter(column)
         super().__init__(master)
         master.root.title(f"{main.DEFAULT_TITLE} - Playlists")
-        self.sort_by = None
-        self.ascending = True
         self.playlist_records = load_playlists_overview()
-        self.table = PlaylistsTable(self)
-        self.sort(SortBy.name)
-
-        # A playlist toplevel is active.
-        self.playlist_open = False
 
         self.title = tk.Label(self, font=inter(30, True), text="Playlists")
-        self.info_frame = ViewPlaylistsInfo(self)
-        self.separator1 = HorizontalLine(self, 750)
 
-        self.separator2 = HorizontalLine(self, 750)
+        if self.playlist_records:
+            self.sort_by = None
+            self.ascending = True
+            self.table = PlaylistsTable(self)
+            self.sort(SortBy.name, initial=True)
+
+            # A playlist toplevel is active.
+            self.playlist_open = False
+
+            self.info_frame = ViewPlaylistsInfo(self)
+            self.separator1 = HorizontalLine(self, 750)
+
+            self.separator2 = HorizontalLine(self, 750)
+        else:
+            # No playlists.
+            self.no_playlists_label = tk.Label(
+                self, font=inter(25),
+                text="No playlists found.\nCreate a playlist to get started!")
         self.navigation_frame = ViewPlaylistsButtons(self)
 
         self.menu = ViewPlaylistsMenu(self)
 
         self.title.pack(padx=10, pady=3)
-        self.info_frame.pack(padx=10, pady=3)
-        self.separator1.pack(padx=10, pady=3)
-        self.table.pack(padx=10, pady=3)
-        self.separator2.pack(padx=10, pady=3)
+        if self.playlist_records:
+            self.info_frame.pack(padx=10, pady=3)
+            self.separator1.pack(padx=10, pady=3)
+            self.table.pack(padx=10, pady=3)
+            self.separator2.pack(padx=10, pady=3)
+        else:
+            self.no_playlists_label.pack(padx=10, pady=25)
         self.navigation_frame.pack(padx=10, pady=3)
         master.root.config(menu=self.menu)
     
@@ -642,8 +676,15 @@ class ViewPlaylists(tk.Frame):
         """Returns the sort filter for a given column."""
         return lambda: self.sort(getattr(SortBy, column.id))
     
-    def sort(self, sort_by: SortBy) -> None:
-        """Sorts the playlist records as required."""
+    def sort(
+        self, sort_by: SortBy, initial: bool = False, update: bool = False
+    ) -> None:
+        """
+        Sorts the playlist records as required.
+        The initial flag indicates if the method is called from __init__.
+        The update flag indicates if the method is called by the program
+        at a later point such as after deleting a playlist.
+        """
         self.table.clear()
         sort_functions = {
             SortBy.id: lambda playlist: playlist[0],
@@ -652,18 +693,30 @@ class ViewPlaylists(tk.Frame):
             SortBy.date_time_created: lambda playlist: playlist[3]
         }
         if sort_by == self.sort_by:
-            # Same filter reversed.
-            self.ascending = not self.ascending
+            if not update:
+                # Same filter reversed, only if not from the program.
+                self.ascending = not self.ascending
         else:
             # Changed filter - ascending by default.
             self.ascending = True
-        # Sorts the playlist records in place.
-        self.playlist_records.sort(
-            key=sort_functions[sort_by], reverse=not self.ascending)
+        if initial:
+            # Sorts the playlist records in place.
+            self.playlist_records.sort(
+                key=sort_functions[sort_by], reverse=not self.ascending)
+        else:
+            # Also updates the playlist records in the process.
+            self.playlist_records = sorted(
+                load_playlists_overview(), key=sort_functions[sort_by],
+                reverse=not self.ascending)
+            if not self.playlist_records:
+                # Refresh and display the no playlists screen.
+                self.master.view_playlists()
+                return
         self.table.extend(self.playlist_records)
         self.sort_by = sort_by
         # Only need to update the sort by display if already existent.
-        if hasattr(self, "info_frame"):
+        if not initial:
+            self.info_frame.update_total_playlists()
             self.info_frame.update_sort_by()
     
     def home(self) -> None:
@@ -679,15 +732,6 @@ class ViewPlaylists(tk.Frame):
             playlist_id = int(self.table.get()[0])
             PlaylistToplevel(self, playlist_id)
             self.playlist_open = True
-    
-    def remove_playlist_from_table(self, playlist_id: int) -> None:
-        """Removes a playlist from the table/list."""
-        index = next(
-            i for i, value in enumerate(self.playlist_records)
-            if value[0] == playlist_id)
-        self.table.pop(index)
-        self.playlist_records.pop(index)
-        self.info_frame.update_total_playlists()
 
 
 class ViewPlaylistsMenu(tk.Menu):
@@ -768,8 +812,13 @@ class PlaylistToplevel(tk.Toplevel):
     """
 
     def __init__(self, master: ViewPlaylists, playlist_id: int) -> None:
+        try:
+            self.data = get_playlist(playlist_id)
+        except PlaylistNotFound:
+            messagebox.showerror(**MISSING_PLAYLIST_ERROR)
+            master.sort(master.sort_by, update=True)
+            return
         super().__init__(master)
-        self.data = get_playlist(playlist_id)
         self.title(f"{main.DEFAULT_TITLE} - Playlist - {self.data.name}")
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -818,15 +867,21 @@ class PlaylistToplevel(tk.Toplevel):
         ):
             return
         try:
-            delete_playlist(self.data.id)
+            if not playlist_exists(self.data.id, "id"):
+                messagebox.showinfo(
+                    "Playlist Already Deleted",
+                        "The playlist has already been deleted.", parent=self)
+            else:
+                delete_playlist(self.data.id)
+                messagebox.showinfo(
+                    "Success",
+                        "Successfully deleted the playlist.", parent=self)
         except Exception as e:
             messagebox.showerror(
                 "Error", f"Failed to delete the playlist: {e}", parent=self)
             return
-        messagebox.showinfo(
-            "Success", "Successfully deleted the playlist.", parent=self)
         self.close()
-        self.master.remove_playlist_from_table(self.data.id)
+        self.master.sort(self.master.sort_by, update=True)
     
     def clean(self) -> None:
         """
@@ -842,7 +897,12 @@ class PlaylistToplevel(tk.Toplevel):
             return
         # Retrieves an up-to-date version of the data in case
         # of changes from another process.
-        self.data = get_playlist(self.data.id)
+        try:
+            self.data = get_playlist(self.data.id)
+        except PlaylistNotFound:
+            self.close()
+            self.master.sort(self.master.sort_by, update=True)
+            messagebox.showerror(**MISSING_PLAYLIST_ERROR, parent=self)
         old_length = len(self.data.files)
         # Determines new files.
         files = [

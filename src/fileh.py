@@ -29,6 +29,11 @@ Playlist = namedtuple(
     "Playlist", ("id", "name", "description", "files", "date_time_created"))
 
 
+class PlaylistNotFound(Exception):
+    """The playlist with a given ID was not found."""
+    pass
+
+
 def create_folder(folder: pathlib.Path = DATA_FOLDER) -> None:
     """Decorator to ensure a folder is created if necessary."""
     def inner(func: Callable) -> Callable:
@@ -228,16 +233,16 @@ def delete_playlist(playlist_id: int) -> None:
         connection.close()
 
 
-def playlist_exists(name: str) -> bool:
-    """Returns True if a playlist with a given name exists, else False."""
+def playlist_exists(value: Any, key: str = "name") -> bool:
+    """Returns True if a playlist with a given name/ID exists, else False."""
     try:
         with sqlite3.connect(DATABASE_PATH) as connection:
             cursor = connection.cursor()
             return bool(cursor.execute(
                 f"""
                 SELECT EXISTS
-                (SELECT * FROM {PLAYLISTS_TABLE} WHERE name=?)
-                """, (name,)).fetchone()[0])
+                (SELECT * FROM {PLAYLISTS_TABLE} WHERE {key}=?)
+                """, (value,)).fetchone()[0])
     finally:
         connection.close()
 
@@ -295,6 +300,9 @@ def get_playlist(playlist_id: int) -> Playlist:
             record = cursor.execute(
                 f"SELECT * FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,)
             ).fetchone()
+            if record is None:
+                # Playlist does not exist.
+                raise PlaylistNotFound
             playlist_id = record[0]
             name = record[1]
             description = record[2]
