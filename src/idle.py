@@ -7,7 +7,10 @@ from widgets import Button
 
 
 class IdleFrame(tk.Frame):
-    """GUI state for when audio has not been loaded and is not playing."""
+    """
+    GUI state for when audio has not been loaded and is not playing
+    i.e. the home screen.
+    """
     
     def __init__(self, master: main.AudioPlayer) -> None:
         super().__init__(master)
@@ -18,6 +21,7 @@ class IdleFrame(tk.Frame):
             self, font=inter(15, italic=True), text="Powered by FFmpeg")
         self.open_file_button = Button(
             self, "Open File", font=inter(25), command=master.open)
+
         self.title.pack(padx=100, pady=(25, 0))
         self.subtitle.pack(padx=100, pady=(0, 25))
         self.open_file_button.pack(padx=100, pady=25)
@@ -25,7 +29,7 @@ class IdleFrame(tk.Frame):
 
 
 class IdleMenu(tk.Menu):
-    """Toplevel menu when the program is in an idle state."""
+    """Toplevel menu for when the program is in an idle state."""
 
     def __init__(self, master: IdleFrame) -> None:
         super().__init__(master)

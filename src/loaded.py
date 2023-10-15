@@ -170,7 +170,7 @@ class PlayProgressBar(tk.Canvas):
     """
     Holds the progress bar denoting the progress through the audio file.
     Will also allow the user to seek to a given time in audio.
-    Includes a circle indicating progress too.
+    Includes a moving circle indicating progress too.
     """
 
     def __init__(self, master: PlayProgressFrame) -> None:
@@ -239,10 +239,9 @@ class PlayProgressBar(tk.Canvas):
         distance_from_centre = math.hypot(
             self.circle_mid_x - x, self.circle_mid_y - y)
         if distance_from_centre <= PROGRESS_CIRCLE_RADIUS:
-            # In the circle.
+            # In the circle. Hence, do not register the click seek.
             return
         audio = self.master.master.master.current
-        audio.stop()
         fraction = (
             x - PROGRESS_CIRCLE_RADIUS * 2) / (
                 PROGRESS_BAR_WIDTH - PROGRESS_CIRCLE_RADIUS)
@@ -335,6 +334,7 @@ class PlayControlsFrame(tk.Frame):
                 self.master.master.pause()
                 self.state_button.set_resume_image()
             self.paused = not self.paused
+        # Updates toplevel menu display.
         self.master.menu.change_state()
     
     @change(ARROW_SEEK_CHANGE_REFRESH_RATE)
@@ -470,11 +470,11 @@ class PlayLoopingFrame(tk.Frame):
     def update_display(self) -> None:
         """Updates display and button states."""
         loops = self.master.master.loops
-        # None -> OFF, inf -> ∞, otherwise display number of loops.
+        # None -> OFF, inf -> ∞, otherwise display fixed number of loops.
         display = {None: "OFF", float("inf"): "∞"}.get(loops, str(loops))
         self.count_label.config(text=display)
         self.off_button.config(state=bool_to_state(loops is not None))
         self.decrement_button.config(state=bool_to_state(bool(loops)))
-        is_infinite = loops == float("inf")
-        self.increment_button.config(state=bool_to_state(not is_infinite))
-        self.infinite_button.config(state=bool_to_state(not is_infinite))
+        is_finite = loops != float("inf")
+        self.increment_button.config(state=bool_to_state(is_finite))
+        self.infinite_button.config(state=bool_to_state(is_finite))

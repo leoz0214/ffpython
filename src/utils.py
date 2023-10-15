@@ -53,7 +53,7 @@ def limit_length(string: str, max_length: int) -> str:
         return string
     # Must shorten: first part .... last part
     left = string[:max_length//2 - 2]
-    right = string[-max_length//2 + 2:]
+    right = string[max_length//2 + 2:]
     return f"{left}....{right}"
 
 

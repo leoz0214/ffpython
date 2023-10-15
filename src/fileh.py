@@ -19,7 +19,7 @@ IMPORT_FOLDER_SETTINGS = DATA_FOLDER / "import_folder_settings.json"
 DATABASE_PATH = DATA_FOLDER / "database.db"
 # Audio file paths in the DB.
 AUDIO_TABLE = "audio"
-# Playlists metdata in the DB.
+# Playlists metadata in the DB.
 PLAYLISTS_TABLE = "playlists"
 # Audio/playlists table. Removes m2m.
 AUDIO_PLAYLISTS_TABLE = "audio_playlists"
@@ -30,8 +30,30 @@ Playlist = namedtuple(
 
 
 class PlaylistNotFound(Exception):
-    """The playlist with a given ID was not found."""
+    """The playlist with the given ID was not found."""
     pass
+
+
+class Database:
+    """SQLite database wrapper class."""
+
+    def __init__(self, database_path: pathlib.Path = DATABASE_PATH) -> None:
+        self.path = database_path
+        self._instance = None
+    
+    def __enter__(self) -> None:
+        """Returns the database cursor upon starting the with statement."""
+        self._instance = sqlite3.connect(self.path)
+        return self._instance.cursor()
+
+    def __exit__(self, exception: Exception | None, *_) -> None:
+        """Run when the with statement is exited from."""
+        if exception is None:
+            # Ran as expected, commit changes.
+            self._instance.commit()
+        # Close the connection.
+        self._instance.close()
+        self._instance = None
 
 
 def create_folder(folder: pathlib.Path = DATA_FOLDER) -> None:
@@ -63,34 +85,27 @@ def update_import_folder_settings(settings: dict) -> None:
 @create_folder()
 def set_up_database() -> None:
     """Sets up the database to ensure it is ready to be used."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            # Creates required tables if they do not exists.
-            # Playlists table: ID, name (unique), description.
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {PLAYLISTS_TABLE}
-                (id integer primary key, name TEXT UNIQUE,
-                    description TEXT, utc_date_time_created DATETIME)
-                """
-            )
-            # Audio files table: ID, file path.
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS
-                {AUDIO_TABLE}(id integer primary key, file_path TEXT)
-                """
-            )
-            # Audio/Playlists table: audio ID, playlist ID, position.
-            cursor.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS
-                {AUDIO_PLAYLISTS_TABLE}(audio_id, playlist_id, position)
-                """
-            )
-    finally:
-        connection.close()
+    with Database() as cursor:
+        # Creates required tables if they do not exist.
+        # Playlists table: ID, name (unique), description.
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {PLAYLISTS_TABLE}
+            (id integer primary key, name TEXT UNIQUE,
+                description TEXT, utc_date_time_created DATETIME)
+            """)
+        # Audio files table: ID, file path.
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS
+            {AUDIO_TABLE}(id integer primary key, file_path TEXT)
+            """)
+        # Audio/Playlists table: audio ID, playlist ID, position.
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS
+            {AUDIO_PLAYLISTS_TABLE}(audio_id, playlist_id, position)
+            """)
 
 
 def insert_new_audio_files(cursor: sqlite3.Cursor, files: list[str]) -> None:
@@ -102,8 +117,7 @@ def insert_new_audio_files(cursor: sqlite3.Cursor, files: list[str]) -> None:
             f"""
             SELECT EXISTS
             (SELECT * FROM {AUDIO_TABLE} WHERE file_path=?) 
-            """, (file,)).fetchone()[0]
-    ]
+            """, (file,)).fetchone()[0]]
     cursor.executemany(
         f"""
         INSERT INTO {AUDIO_TABLE} (id, file_path) VALUES (NULL, ?)
@@ -137,7 +151,7 @@ def delete_old_audio_ids(
     Checks audio IDs to see if they are still referenced in the
     Audio/Playlist table, otherwise deletes the corresponding record.
     This function should only be on audio IDs that have been cut
-    of from a playlist after playlist update or deletion.
+    off from a playlist after playlist update or deletion.
     """
     to_delete = [
         audio_id for audio_id in audio_ids
@@ -154,23 +168,19 @@ def delete_old_audio_ids(
 
 def create_playlist(name: str, description: str, files: list[str]) -> None:
     """Creates a playlist with the given metadata and audio files."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            insert_new_audio_files(cursor, files)
-            date_time_created = dt.datetime.utcnow().isoformat()
-            playlist_id = cursor.execute(
-                f"""
-                INSERT INTO {PLAYLISTS_TABLE}
-                (id, name, description, utc_date_time_created)
-                VALUES (NULL, ?, ?, ?)
-                """, (name, description, date_time_created)
-            ).execute(
-                f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name=?", (name,)
-            ).fetchone()[0]
-            insert_playlist_audio_records(cursor, playlist_id, files)
-    finally:
-        connection.close()
+    with Database() as cursor:
+        insert_new_audio_files(cursor, files)
+        date_time_created = dt.datetime.utcnow().isoformat()
+        playlist_id = cursor.execute(
+            f"""
+            INSERT INTO {PLAYLISTS_TABLE}
+            (id, name, description, utc_date_time_created)
+            VALUES (NULL, ?, ?, ?)
+            """, (name, description, date_time_created)
+        ).execute(
+            f"SELECT id FROM {PLAYLISTS_TABLE} WHERE name=?", (name,)
+        ).fetchone()[0]
+        insert_playlist_audio_records(cursor, playlist_id, files)
 
 
 def get_audio_ids(cursor: sqlite3.Cursor, playlist_id: int) -> set[int]:
@@ -178,8 +188,7 @@ def get_audio_ids(cursor: sqlite3.Cursor, playlist_id: int) -> set[int]:
     return set(
         record[0] for record in cursor.execute(
             f"""
-            SELECT audio_id FROM {AUDIO_PLAYLISTS_TABLE}
-            WHERE playlist_id=?
+            SELECT audio_id FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?
             """, (playlist_id,)))
 
 
@@ -187,70 +196,58 @@ def update_playlist(
     playlist_id: int, name: str, description: str, files: list[str]
 ) -> None:
     """Updates a given playlist based on ID."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            # Updates the playlist itself.
-            cursor.execute(
-                f"""
-                UPDATE {PLAYLISTS_TABLE} SET
-                name=?, description=? WHERE id=?
-                """, (name, description, playlist_id))
-            insert_new_audio_files(cursor, files)
-            # Updates the playlist/audio records.
-            # Obtains old audio IDs in playlist.
-            old_audio_ids = get_audio_ids(cursor, playlist_id)
-            # Deletes old playlist/audio records.
-            cursor.execute(
-                f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
-                (playlist_id,))
-            insert_playlist_audio_records(cursor, playlist_id, files)
-            # Obtains new audio IDs in playlist.
-            new_audio_ids = get_audio_ids(cursor, playlist_id)
-            # Checks any no longer used audio IDs and deletes
-            # them if possible, to save space.
-            delete_old_audio_ids(cursor, old_audio_ids - new_audio_ids)
-    finally:
-        connection.close()
+    with Database() as cursor:
+        # Updates the playlist itself.
+        cursor.execute(
+            f"""
+            UPDATE {PLAYLISTS_TABLE} SET
+            name=?, description=? WHERE id=?
+            """, (name, description, playlist_id))
+        insert_new_audio_files(cursor, files)
+        # Updates the playlist/audio records.
+        # Obtains old audio IDs in playlist.
+        old_audio_ids = get_audio_ids(cursor, playlist_id)
+        # Deletes old playlist/audio records.
+        cursor.execute(
+            f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
+            (playlist_id,))
+        insert_playlist_audio_records(cursor, playlist_id, files)
+        # Obtains new audio IDs in playlist.
+        new_audio_ids = get_audio_ids(cursor, playlist_id)
+        # Checks any no longer used audio IDs and deletes
+        # them if possible, to save space.
+        delete_old_audio_ids(cursor, old_audio_ids - new_audio_ids)
 
 
 def delete_playlist(playlist_id: int) -> None:
     """Deletes a given playlist by ID."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            cursor.execute(
-                f"DELETE FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,))
-            # Get audio IDs of playlist to delete.
-            audio_ids = get_audio_ids(cursor, playlist_id)
-            cursor.execute(
-                f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
-                (playlist_id,))
-            # Deletes any audio records which no longer have any use
-            # upon deleting the current playlist.
-            delete_old_audio_ids(cursor, audio_ids)
-    finally:
-        connection.close()
+    with Database() as cursor:
+        cursor.execute(
+            f"DELETE FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,))
+        # Get audio IDs of playlist to delete.
+        audio_ids = get_audio_ids(cursor, playlist_id)
+        cursor.execute(
+            f"DELETE FROM {AUDIO_PLAYLISTS_TABLE} WHERE playlist_id=?",
+            (playlist_id,))
+        # Deletes any audio records which no longer have any use
+        # upon deleting the current playlist.
+        delete_old_audio_ids(cursor, audio_ids)
 
 
 def playlist_exists(value: Any, key: str = "name") -> bool:
     """Returns True if a playlist with a given name/ID exists, else False."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            return bool(cursor.execute(
-                f"""
-                SELECT EXISTS
-                (SELECT * FROM {PLAYLISTS_TABLE} WHERE {key}=?)
-                """, (value,)).fetchone()[0])
-    finally:
-        connection.close()
+    with Database() as cursor:
+        return bool(cursor.execute(
+            f"""
+            SELECT EXISTS
+            (SELECT * FROM {PLAYLISTS_TABLE} WHERE {key}=?)
+            """, (value,)).fetchone()[0])
 
 
 def parse_date_time_created(utc_date_time: str) -> dt.datetime:
     """
     Converts a UTC time string to a local time datetime object
-    with microseconds stripped, to output as a date time created.
+    with microseconds stripped, to output as a date/time created.
     """
     utc_date_time_created = dt.datetime.fromisoformat(utc_date_time)
     return utc_date_time_created.replace(
@@ -263,65 +260,57 @@ def load_playlists_overview() -> list[tuple]:
     Returns all basic playlist records from the database.
     Fields: ID, name, length, date/time created.
     """
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            playlist_records = cursor.execute(
-                f"""
-                SELECT id, name, utc_date_time_created FROM {PLAYLISTS_TABLE}
-                """).fetchall()
-            audio_playlist_ids = cursor.execute(
-                f"SELECT playlist_id FROM {AUDIO_PLAYLISTS_TABLE}"
-            ).fetchall()
-            lengths = {}
-            for playlist_id in audio_playlist_ids:
-                # Using index 0 to access the value in the 1-tuple.
-                lengths[playlist_id[0]] = lengths.get(playlist_id[0], 0) + 1
-            playlists = []
-            for record in playlist_records:
-                playlist_id = record[0]
-                name = limit_length(
-                    record[1], MAX_PLAYLIST_NAME_DISPLAY_LENGTH)
-                length = lengths[playlist_id]
-                date_time_created = parse_date_time_created(record[2])
-                playlist_overview = (
-                    playlist_id, name, length, date_time_created)
-                playlists.append(playlist_overview)
-            return playlists
-    finally:
-        connection.close()
+    with Database() as cursor:
+        playlist_records = cursor.execute(
+            f"SELECT id, name, utc_date_time_created FROM {PLAYLISTS_TABLE}"
+        ).fetchall()
+        audio_playlist_ids = cursor.execute(
+            f"SELECT playlist_id FROM {AUDIO_PLAYLISTS_TABLE}").fetchall()
+        # Calculates the length of each playlist by ID.
+        lengths = {}
+        for playlist_id in audio_playlist_ids:
+            # Using index 0 to access the value in the 1-tuple.
+            lengths[playlist_id[0]] = lengths.get(playlist_id[0], 0) + 1
+        playlists = []
+        # Generates the record for each playlist.
+        for record in playlist_records:
+            playlist_id = record[0]
+            name = limit_length(
+                record[1], MAX_PLAYLIST_NAME_DISPLAY_LENGTH)
+            length = lengths[playlist_id]
+            date_time_created = parse_date_time_created(record[2])
+            playlist_overview = (
+                playlist_id, name, length, date_time_created)
+            playlists.append(playlist_overview)
+        return playlists
 
 
 def get_playlist(playlist_id: int) -> Playlist:
     """Returns full playlist data, including each file in the playlist."""
-    try:
-        with sqlite3.connect(DATABASE_PATH) as connection:
-            cursor = connection.cursor()
-            record = cursor.execute(
-                f"SELECT * FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,)
-            ).fetchone()
-            if record is None:
-                # Playlist does not exist.
-                raise PlaylistNotFound
-            playlist_id = record[0]
-            name = record[1]
-            description = record[2]
-            date_time_created = parse_date_time_created(record[3])
-            file_records = cursor.execute(
-                f"""
-                SELECT audio_id, position FROM {AUDIO_PLAYLISTS_TABLE}
-                WHERE playlist_id=?
-                """, (playlist_id,)).fetchall()
-            # Ensures file records are in the correct order/position.
-            # They should be, but just to be sure.
-            file_records.sort(key=lambda record: record[1])
-            # Gets corresponding file paths now.
-            files = [
-                cursor.execute(
-                    f"SELECT file_path FROM {AUDIO_TABLE} WHERE id=?", 
-                    (audio_id,)
-                ).fetchone()[0] for audio_id, _ in file_records]
-            return Playlist(
-                playlist_id, name, description, files, date_time_created)
-    finally:
-        connection.close()
+    with Database() as cursor:
+        record = cursor.execute(
+            f"SELECT * FROM {PLAYLISTS_TABLE} WHERE id=?", (playlist_id,)
+        ).fetchone()
+        if record is None:
+            # Playlist does not exist.
+            raise PlaylistNotFound
+        playlist_id = record[0]
+        name = record[1]
+        description = record[2]
+        date_time_created = parse_date_time_created(record[3])
+        file_records = cursor.execute(
+            f"""
+            SELECT audio_id, position FROM {AUDIO_PLAYLISTS_TABLE}
+            WHERE playlist_id=?
+            """, (playlist_id,)).fetchall()
+        # Ensures file records are in the correct order/position.
+        # They should be, but just to be sure.
+        file_records.sort(key=lambda record: record[1])
+        # Gets corresponding file paths now.
+        files = [
+            cursor.execute(
+                f"SELECT file_path FROM {AUDIO_TABLE} WHERE id=?", 
+                (audio_id,)).fetchone()[0]
+            for audio_id, _ in file_records]
+        return Playlist(
+            playlist_id, name, description, files, date_time_created)

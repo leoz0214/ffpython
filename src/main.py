@@ -25,20 +25,20 @@ SEEK_SECONDS = 10
 class AudioPlayer(tk.Frame):
     """
     Holds the main audio player GUI,
-    which the user can load audio files and play them.
+    where the user can load audio files and play them.
     """
 
     def __init__(self, root: tk.Tk) -> None:
         super().__init__(root)
         self.root = root
         self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
-        self.root.title(DEFAULT_TITLE)
         self.root.bind("<Control-o>", lambda *_: self.open())
 
+        # Current Audio object. Is None when not loaded.
         self.current = None
         # Looping: None - OFF, int - fixed, inf - forever.
         self.loops = None
-
+        # Set initial frame: the home screen.
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
     
@@ -99,6 +99,7 @@ class AudioPlayer(tk.Frame):
 
     def play(self, from_seek: bool = False) -> None:
         """Plays the audio. Must be called through a thread."""
+        file_path = self.current.file_path
         try:
             # Should not play anything if playing from a seek and virtually
             # already done.
@@ -111,6 +112,7 @@ class AudioPlayer(tk.Frame):
                     # Main audio loop.
                     while self.current.is_playing:
                         time.sleep(0.1)
+                        # Performs another check before updating the frame.
                         if not self.current.is_playing:
                             break
                         self.frame.update_progress(self.current.current_seconds)
@@ -140,13 +142,12 @@ class AudioPlayer(tk.Frame):
                 # Set the state update in menu as 'Replay'.
                 self.frame.menu.change_state()
         except Exception as e:
-            if self.current is None:
-                # Already stopped prematurely.
+            if self.current != file_path:
+                # Already stopped or another file loaded, so ignore the error.
                 return
             messagebox.showerror(
                 "Playback Error",
-                    "Unfortunately, an error has "
-                    f"occurred while playing audio: {e}")
+                    f"Unfortunately, an playback error has occurred: {e}")
             self.stop()
     
     def pause(self) -> None:
@@ -164,6 +165,7 @@ class AudioPlayer(tk.Frame):
         for key in ("space", "Left", "Right"):
             self.root.unbind(f"<{key}>")
         self.current.stop()
+        # Dereference Audio object and reset loop variable.
         self.current = None
         self.loops = None
         if update_state:
@@ -177,7 +179,7 @@ class AudioPlayer(tk.Frame):
     
     def seek_after_end(self) -> None:
         """
-        Method to update the state whenever playback has reached the en
+        Method to update the state whenever playback has reached the end
         but the user seeks backs into the audio, so will no longer
         be at the end.
         """
@@ -190,6 +192,8 @@ class AudioPlayer(tk.Frame):
         """Seeks at a given point in the audio."""
         if self.current.start_time is None:
             self.seek_after_end()
+        if self.current.paused:
+            self.frame.play_controls_frame.change_state(forced=True)
         self.current.seek_to(seconds)
         self.start_playback_thread(from_seek=True)
     

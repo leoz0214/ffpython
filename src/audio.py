@@ -1,7 +1,7 @@
 """
 Internal handling of audio, including loading and playing.
-This app relies fully on FFmpeg software, so it expected that
-ffmpeg is fully installed and added to PATH.
+This app relies fully on FFmpeg software, so it is expected that
+FFmpeg is fully installed and added to PATH.
 """
 import ctypes
 import json
@@ -25,7 +25,7 @@ get_memory_usage_alt = ctypes.CDLL(
 class Audio:
     """
     Represents an audio object in the app, providing key information
-    such as file path, name and metadata including duration.
+    such as file path, name and metadata, including duration.
     Also allows the audio to be played, paused, stopped, sought etc.
     """
 
@@ -68,8 +68,7 @@ class Audio:
             while 0 < self.memory_usage <= initial_memory_usage:
                 time.sleep(0.05)
         except Exception as e:
-            print(f"Error: {e}")
-            print("Falling back to hard-coded audio delay.")
+            print(f"Error: {e}. Falling back to hard-coded audio delay.")
             time.sleep(0.5)
         if self.start_time is None:
             self.start_time = timer()
@@ -99,9 +98,7 @@ class Audio:
             if self.paused:
                 self.resume()
             if self.process is not None:
-                self.handling_process = True
                 self.terminate()
-                self.handling_process = False
             return method(self, *args, **kwargs)
         return wrapper
     
@@ -172,7 +169,7 @@ class Audio:
     def memory_usage(self) -> int:
         """Current number of bytes used by the process."""
         if not self.process:
-            # No process, no memory!
+            # No process, no memory.
             return 0
         with suppress(Exception):
             # C++ shared library approach.
@@ -180,11 +177,13 @@ class Audio:
             if memory_bytes == -1:
                 raise RuntimeError
             return memory_bytes
-        # Backup approach, try it. in case of failure.
+        # Backup approach, try it in case of failure.
         # Identifies the PID and gets task info, with memory info included.
         command = ("tasklist", "/fi", f"pid eq {self.process.pid}")
         # Runs the command and fetches the output as a string.
-        output = subprocess.check_output(command).decode()
+        output = subprocess.check_output(
+            command, creationflags=subprocess.CREATE_NO_WINDOW, timeout=1
+        ).decode()
         # Parses the output string for the memory usage in KB.
         # Multiplies by 1024 to get rough memory usage in Bytes.
         return int(
@@ -206,7 +205,7 @@ def load_audio(file_path: str) -> Audio:
                 timeout=30).decode())
     except subprocess.CalledProcessError:
         raise RuntimeError(
-            "Unable to obtain audio data. Are you sure you have ffprobe "
+            "Unable to obtain audio data. Are you sure you have FFprobe "
             "installed, and that the audio file is valid?")
     except subprocess.TimeoutExpired:
         raise TimeoutError("Timeout while trying to fetch audio metadata.")
