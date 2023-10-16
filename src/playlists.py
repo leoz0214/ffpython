@@ -1,6 +1,7 @@
 """Handles playlist creation, playing, viewing, editing and deleting."""
 import enum
 import pathlib
+import random
 import tkinter as tk
 from contextlib import suppress
 from tkinter import filedialog
@@ -17,7 +18,7 @@ from fileh import (
 from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
 from widgets import (
     Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
-    Checkbutton, Table, TableColumn
+    Checkbutton, Table, TableColumn, LoopingFrame
 )
 
 
@@ -36,7 +37,7 @@ TABLE_COLUMNS = (
     TableColumn("length", "Length", 100),
     TableColumn("date_time_created", "Created", 175, "w")
 )
-# For the Playlist toplevel, sets a suitable playlist name font size.
+# For the Playlist titles, sets a suitable playlist name font size.
 PLAYLIST_NAME_SIZE = {
     50: 20,
     20: 25,
@@ -50,6 +51,8 @@ MISSING_PLAYLIST_ERROR = {
     "message": "The target playlist was not found in the database.\n"
                "Perhaps it has been deleted."
 }
+# Maximum finite number of playlist repeats.
+MAX_PLAYLIST_LOOPS = 9
 
 
 class SortBy(enum.Enum):
@@ -850,6 +853,11 @@ class PlaylistToplevel(tk.Toplevel):
         self.separator2.pack(padx=10, pady=3)
         self.buttons.pack(padx=10, pady=3)
     
+    def play(self) -> None:
+        """Proceeds to prepare playlist playback."""
+        self.master.master.update_state(
+            lambda master: PlaylistPlayFrame(master, self.data.id))
+    
     def edit(self) -> None:
         """Proceeds to the playlist form to edit this playlist."""
         # Destroys toplevel and closes view playlists.
@@ -970,7 +978,7 @@ class PlaylistButtons(tk.Frame):
 
     def __init__(self, master: PlaylistToplevel) -> None:
         super().__init__(master)
-        self.play_button = Button(self, "Play", inter(25))
+        self.play_button = Button(self, "Play", inter(25), command=master.play)
         self.edit_button = Button(self, "Edit", inter(12), command=master.edit)
         self.clean_button = Button(
             self, "Clean", inter(12), command=master.clean)
@@ -982,4 +990,160 @@ class PlaylistButtons(tk.Frame):
         self.edit_button.grid(row=0, column=1, padx=10, pady=2)
         self.clean_button.grid(row=1, column=1, padx=10, pady=2)
         self.delete_button.grid(row=2, column=1, padx=10, pady=2)
+
+
+class PlaylistPlayFrame(tk.Frame):
+    """
+    Allows the user to confirm playlist playback and perhaps
+    also set the number of playlist loops.
+    The audio files can also be shuffled in case order never mattered.
+    """
+
+    def __init__(self, master: "main.AudioPlayer", playlist_id: int) -> None:
+        try:
+            self.data = get_playlist(playlist_id)
+        except PlaylistNotFound:
+            master.view_playlists()
+            messagebox.showerror(**MISSING_PLAYLIST_ERROR)
+            return
+        super().__init__(master)
+        self.original_order = self.data.files.copy()
+        master.root.title(
+            f"{main.DEFAULT_TITLE} - Playlist - {self.data.name} - Play")
+        for length, size in PLAYLIST_NAME_SIZE.items():
+            if len(self.data.name) >= length:
+                break
+        self.title = tk.Label(
+            self, font=inter(size, True), text=self.data.name, wraplength=1000)
+        self.length_label = tk.Label(
+            self, font=inter(15), text=f"Files: {len(self.data.files)}")
+        self.separator1 = HorizontalLine(self, 750)
+        self.listbox = Listbox(
+            self, width=100, height=12, horizontal_scrollbar=True)
+        self.fill_listbox(self.data.files)
+        self.settings_frame = PlaylistPlaySettingsFrame(self)
+        self.separator2 = HorizontalLine(self, 750)
+        self.buttons = PlaylistPlayButtons(self)
+        self.menu = PlaylistPlayMenu(self)
+
+        master.root.bind("<Control-r>", lambda *_: self.reset_order())
+        master.root.bind("<Control-s>", lambda *_: self.shuffle())
+
+        self.title.pack(padx=5, pady=2)
+        self.length_label.pack(padx=5, pady=2)
+        self.separator1.pack(padx=5, pady=2)
+        self.listbox.pack(padx=5, pady=2)
+        self.settings_frame.pack(padx=5, pady=2)
+        self.separator2.pack(padx=5, pady=2)
+        self.buttons.pack(padx=5, pady=2)
+        master.root.config(menu=self.menu)
     
+    def fill_listbox(self, files: list[str]) -> None:
+        """Fills the listbox with the given files."""
+        self.listbox.clear()
+        zfill = len(str(len(files)))
+        self.listbox.extend(
+            f"{str(i).zfill(zfill)} | {file}"
+            for i, file in enumerate(files, 1))
+    
+    def reset_order(self) -> None:
+        """Resets the order of the files back to the original."""
+        if self.settings_frame.reset_order_button["state"] == "disabled":
+            # Button disabled, also cannot access through keybind.
+            return
+        self.data.files[:] = self.original_order
+        self.fill_listbox(self.data.files)
+        self.settings_frame.update_reset_order_state()
+        self.menu.update_state()
+    
+    def shuffle(self) -> None:
+        """Shuffles the order of the files."""
+        random.shuffle(self.data.files)
+        self.fill_listbox(self.data.files)
+        self.settings_frame.update_reset_order_state()
+        self.menu.update_state()
+    
+    def unbind_keybinds(self) -> None:
+        """Unbinds the keybinds."""
+        for keybind in ("Control-r", "Control-s"):
+            self.master.root.unbind(f"<{keybind}>")
+    
+    def back(self) -> None:
+        """Cancels playback and returns to view playlists."""
+        if not messagebox.askyesnocancel(
+            "Confirm Back",
+                "Are you sure you would no longer like to play this playlist?"
+        ):
+            return
+        self.unbind_keybinds()
+        self.master.view_playlists()
+    
+    def start(self) -> None:
+        """Starts the playlist playback."""
+        self.unbind_keybinds()
+
+
+class PlaylistPlayMenu(tk.Menu):
+    """Toplevel menu for the playlist playback preparation window."""
+
+    def __init__(self, master: PlaylistPlayFrame) -> None:
+        super().__init__(master)
+        self.file_menu = tk.Menu(self, tearoff=False)
+        self.file_menu.add_command(
+            label="Reset Order (Ctrl+R)", font=inter(12),
+            command=master.reset_order)
+        self.file_menu.add_command(
+            label="Shuffle (Ctrl+S)", font=inter(12), command=master.shuffle)
+        self.file_menu.add_command(
+            label="Start", font=inter(12), command=master.start)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(
+            label="Back", font=inter(12), command=master.back)
+        self.file_menu.add_command(
+            label="Close App (Alt+F4)", font=inter(12), command=main.quit_app)
+        self.add_cascade(label="File", menu=self.file_menu)
+    
+    def update_state(self) -> None:
+        """Updates the Reset Order option state as per the button state."""
+        self.file_menu.entryconfig(
+            0, state=self.master.settings_frame.reset_order_button["state"])
+
+
+class PlaylistPlaySettingsFrame(tk.Frame):
+    """
+    Options allowing the user to shuffle/reset to default
+    the order of a playlist and also set the number of playlist loops.
+    """
+
+    def __init__(self, master: PlaylistPlayFrame) -> None:
+        super().__init__(master)
+        self.reset_order_button = Button(
+            self, "Reset Order", state="disabled", command=master.reset_order)
+        self.shuffle_button = Button(self, "Shuffle", command=master.shuffle)
+        self.looping_frame = LoopingFrame(self, MAX_PLAYLIST_LOOPS)
+
+        self.reset_order_button.pack(padx=5, pady=3, side="left")
+        self.shuffle_button.pack(padx=5, pady=3, side="left")
+        self.looping_frame.pack(padx=(100, 5), side="right", anchor="e")
+    
+    def update_reset_order_state(self) -> None:
+        """
+        Updates the state of the reset order button:
+        disabled if already in original order.
+        """
+        self.reset_order_button.config(
+            state=bool_to_state(
+                self.master.data.files != self.master.original_order))
+
+
+class PlaylistPlayButtons(tk.Frame):
+    """Either starts the playlist or cancels playback."""
+
+    def __init__(self, master: PlaylistPlayFrame) -> None:
+        super().__init__(master)
+        self.back_button = Button(
+            self, "Back", inter(20), command=master.back)
+        self.start_button = Button(
+            self, "Start", inter(20), command=master.start)
+        self.back_button.pack(padx=5, pady=3, side="left")
+        self.start_button.pack(padx=5, pady=3, side="right")

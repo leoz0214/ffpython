@@ -9,7 +9,7 @@ from colours import (
     LISTBOX_COLOURS, RADIOBUTTON_COLOURS, CHECKBUTTON_COLOURS, TABLE_COLOURS,
     FG
 )
-from utils import inter
+from utils import inter, load_image, bool_to_state
 
 
 # Table Column dataclass for the Table widget.
@@ -425,3 +425,93 @@ class Table(tk.Frame):
         """Deletes the record at the given index."""
         item = self.treeview.get_children()[index]
         self.treeview.delete(item)
+
+
+class LoopingFrame(tk.Frame):
+    """
+    Handles looping, allowing turning looping off, 
+    infinite loops and a fixed number of loops.
+    """
+
+    def __init__(
+        self, master: tk.Frame, max_loops: int,
+        loop_variable_frame: tk.Frame = None,
+        loop_variable_name: str = "loops"
+    ) -> None:
+        super().__init__(master)
+        self.loop_image = load_image("loop.png")
+        self.max_loops = max_loops
+        if loop_variable_frame is None:
+            self.loop_variable_frame = self
+            self.loop_variable_name = "_loops"
+            self._loops = None
+        else:
+            self.loop_variable_frame = loop_variable_frame
+            self.loop_variable_name = loop_variable_name
+        
+        self.image = tk.Label(self, image=self.loop_image)
+        self.off_button = Button(
+            self, "❌", inter(12), width=2, border=1, command=self.off)
+        self.decrement_button = Button(
+            self, "-", inter(12), width=2, command=self.decrement)
+        self.count_label = tk.Label(
+            self, font=inter(12), text="OFF", width=4)
+        self.increment_button = Button(
+            self, "+", inter(12), width=2, command=self.increment)
+        self.infinite_button = Button(
+            self, "∞", inter(12), width=2, border=1, command=self.infinite)
+        self.update_display()
+
+        self.image.grid(row=0, column=0, padx=(5, 10), pady=5)
+        self.off_button.grid(row=0, column=1, pady=5)
+        self.decrement_button.grid(row=0, column=2, pady=5)
+        self.count_label.grid(row=0, column=3, pady=5)
+        self.increment_button.grid(row=0, column=4, pady=5)
+        self.infinite_button.grid(row=0, column=5, pady=5)
+    
+    @property
+    def loops(self) -> None | int | float:
+        return getattr(self.loop_variable_frame, self.loop_variable_name)
+    
+    @loops.setter
+    def loops(self, loops: None | int | float) -> None:
+        setattr(self.loop_variable_frame, self.loop_variable_name, loops)
+    
+    def off(self) -> None:
+        """Turns looping off."""
+        self.loops = None
+        self.update_display()
+    
+    def decrement(self) -> None:
+        """Removes a loop (-1)."""
+        if self.loops == float("inf"):
+            # Decrease infinity to the highest allowed finite number.
+            self.loops = self.max_loops
+        else:
+            self.loops -= 1
+        self.update_display()
+
+    def increment(self) -> None:
+        """Adds a loop (+1)."""
+        self.loops = (self.loops or 0) + 1
+        if self.loops > self.max_loops:
+            # Increase highest allowed finite number to infinity.
+            self.loops = float("inf")
+        self.update_display()
+    
+    def infinite(self) -> None:
+        """Sets looping to infinite (forever)."""
+        self.loops = float("inf")
+        self.update_display()
+
+    def update_display(self) -> None:
+        """Updates display and button states."""
+        loops = self.loops
+        # None -> OFF, inf -> ∞, otherwise display fixed number of loops.
+        display = {None: "OFF", float("inf"): "∞"}.get(loops, str(loops))
+        self.count_label.config(text=display)
+        self.off_button.config(state=bool_to_state(loops is not None))
+        self.decrement_button.config(state=bool_to_state(bool(loops)))
+        is_finite = loops != float("inf")
+        self.increment_button.config(state=bool_to_state(is_finite))
+        self.infinite_button.config(state=bool_to_state(is_finite))
