@@ -1,5 +1,5 @@
 **/__pycache__
-./bin/
-./bin/*
-./data/
-./data/*
+bin/
+bin/*
+data/
+data/*
