@@ -5,7 +5,7 @@ import time
 import tkinter as tk
 from contextlib import suppress
 from tkinter import messagebox
-from typing import Callable
+from typing import Callable, Any
 
 import idle
 import loaded
@@ -38,6 +38,9 @@ class AudioPlayer(tk.Frame):
         self.current = None
         # Looping: None - OFF, int - fixed, inf - forever.
         self.loops = None
+        # Playlist object tracking playlist playback info.
+        # Is None when not loaded.
+        self.playlist = None
         # Set initial frame: the home screen.
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
@@ -61,9 +64,13 @@ class AudioPlayer(tk.Frame):
                 "Error",
                     f"Failed to load audio due to the following error: {e}")
             return
-        self.update_state()
 
-        # Binds playback control keys.
+        self.update_state()
+        self.bind_playback_keys()
+        self.start_playback_thread()
+    
+    def bind_playback_keys(self) -> None:
+        """Binds playback control keys."""
         self.root.bind(
             "<space>",
             lambda *_: self.frame.play_controls_frame.change_state())
@@ -72,8 +79,6 @@ class AudioPlayer(tk.Frame):
         self.root.bind(
             "<Right>",
             lambda *_: self.frame.play_controls_frame.seek_forward())
-
-        self.start_playback_thread()
     
     def start_playback_thread(self, from_seek: bool = False) -> None:
         """Starts the playback thread."""
@@ -96,6 +101,36 @@ class AudioPlayer(tk.Frame):
             )(self)
             self.root.bind("<Control-o>", lambda *_: self.open())
         self.frame.pack(padx=25, pady=25)
+    
+    @property
+    def stop_button_keyword(self) -> str:
+        return "Playlist" if self.in_playlist else "Playback"
+    
+    @staticmethod
+    def block_gui_command(command: Callable) -> Callable:
+        """
+        Decorator which blocks the GUI while a command
+        is running by faking a button click. Useful in a thread.
+        """
+        def wrapper(self, *args, **kwargs) -> Any:
+            return tk.Button(
+                 command=lambda: command(self, *args, **kwargs)).invoke()
+        return wrapper
+
+    @block_gui_command
+    def play_current(self) -> None:
+        """Plays the current file in the playlist."""
+        try:
+            self.current = load_audio(self.playlist.current)
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                    f"Failed to load audio file: {self.playlist.current} "
+                    f"due to the following error: {e}")
+            self.stop()
+            return
+        self.frame.update_file()
+        self.start_playback_thread()
 
     def play(self, from_seek: bool = False) -> None:
         """Plays the audio. Must be called through a thread."""
@@ -120,19 +155,32 @@ class AudioPlayer(tk.Frame):
                 not self.current.paused
                 and self.current.current_seconds + 0.5 >= self.current.duration
             ):
-                # PLAYBACK DONE.
+                # PLAYBACK OF CURRENT AUDIO DONE.
                 # Resets current audio in case of replay.
                 self.current.reset()
                 if self.loops:
                     # Looping - repeat.
-                    self.replay()
+                    self.replay(from_loop=True)
                     # Be safe - prevent 0 being decremented to -1
                     # or None raising an error (thread issues).
                     if self.loops:
                         self.loops -= 1
                     self.frame.play_looping_frame.update_display()
                     return
-                self.frame.stop_button.config(text="Exit Playback")
+                if self.in_playlist:
+                    if (not self.playlist.at_end) or self.playlist.loops:
+                        if not self.playlist.at_end:
+                            # Increment to next playlist file
+                            self.playlist.position += 1
+                        else:
+                            # Decrements loops and restarts the playlist.
+                            self.playlist.loops -= 1
+                            self.playlist.position = 0
+                        self.play_current()
+                        return
+            
+                self.frame.stop_button.config(
+                    text=f"Exit {self.stop_button_keyword}")
                 # Make progress 100% to indicate completion.
                 self.frame.update_progress(self.current.duration)
                 # Sets 'paused' to None (neither paused nor resumed).
@@ -160,7 +208,7 @@ class AudioPlayer(tk.Frame):
         self.start_playback_thread()
     
     def stop(self, update_state: bool = True) -> None:
-        """Terminates audio playback."""
+        """Terminates audio/playlist playback."""
         # Unbinds audio playback control keys.
         for key in ("space", "Left", "Right"):
             self.root.unbind(f"<{key}>")
@@ -168,14 +216,21 @@ class AudioPlayer(tk.Frame):
         # Dereference Audio object and reset loop variable.
         self.current = None
         self.loops = None
+        self.playlist = None
         if update_state:
             self.update_state()
     
-    def replay(self) -> None:
-        """Replays the audio."""
-        self.frame.update_progress(0)
-        self.frame.stop_button.config(text="Stop Playback")
-        self.start_playback_thread()
+    def replay(self, from_loop: bool = False) -> None:
+        """Replays the audio, or the entire playlist."""
+        if from_loop or not self.in_playlist:
+            # Repeat audio.
+            self.frame.update_progress(0)
+            self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
+            self.start_playback_thread()
+            return
+        # Repeat playlist.
+        self.playlist.position = 0
+        self.play_current()
     
     def seek_after_end(self) -> None:
         """
@@ -183,7 +238,7 @@ class AudioPlayer(tk.Frame):
         but the user seeks backs into the audio, so will no longer
         be at the end.
         """
-        self.frame.stop_button.config(text="Stop Playback")
+        self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
         self.frame.play_controls_frame.paused = False
         self.frame.play_controls_frame.state_button.set_pause_image()
         self.frame.menu.change_state()
@@ -228,6 +283,26 @@ class AudioPlayer(tk.Frame):
         if self.current is not None:
             self.stop()
         self.update_state(playlists.ViewPlaylists)
+
+    @property
+    def in_playlist(self) -> bool:
+        """Returns True if a playlist is loaded, else False."""
+        return self.playlist is not None
+    
+    def start_playlist(self, playlist: playlists.PlaylistPlayback) -> None:
+        """Starts the playlist playback."""
+        self.playlist = playlist
+        try:
+            self.current = load_audio(self.playlist.current)
+        except Exception as e:
+            messagebox.showerror(
+                "Error",
+                    f"Failed to load audio file: {self.playlist.current} "
+                    f"due to the following error: {e}")
+            return
+        self.update_state()
+        self.bind_playback_keys()
+        self.start_playback_thread()
 
 
 def main() -> None:

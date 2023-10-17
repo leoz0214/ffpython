@@ -64,16 +64,12 @@ class Button(tk.Button):
         super().config(self, cursor=cursor)
 
 
-class HorizontalLine(tk.Canvas):
-    """
-    Represents a horizontal line,
-    which can be used as a separator, for example.
-    """
+class Line(tk.Canvas):
+    """Represents a line which can be used as a separator, for example."""
 
     def __init__(
-        self, master: tk.Widget, width: int, height: int = 1,
-        colour: str = LINE_COLOURS["background"],
-        active_colour: str = LINE_COLOURS["activebackground"]
+        self, master: tk.Widget, width: int, height: int,
+        colour: str, active_colour: str
     ) -> None:
         super().__init__(
             master, width=width, height=height, bg=colour)
@@ -89,6 +85,28 @@ class HorizontalLine(tk.Canvas):
     def on_exit(self) -> None:
         """No longer hovering over the line."""
         self.config(bg=self.colour)
+
+
+class HorizontalLine(Line):
+    """Represents a horizontal line."""
+
+    def __init__(
+        self, master: tk.Widget, width: int, height: int = 1,
+        colour: str = LINE_COLOURS["background"],
+        active_colour: str = LINE_COLOURS["activebackground"]
+    ) -> None:
+        super().__init__(master, width, height, colour, active_colour)
+
+
+class VerticalLine(Line):
+    """Represents a vertical line."""
+
+    def __init__(
+        self, master: tk.Widget, height: int, width: int = 1,
+        colour: str = LINE_COLOURS["background"],
+        active_colour: str = LINE_COLOURS["activebackground"]
+    ) -> None:
+        super().__init__(master, width, height, colour, active_colour)
 
 
 class StringEntry(tk.Entry):

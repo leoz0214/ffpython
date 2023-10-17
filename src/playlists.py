@@ -15,7 +15,10 @@ from fileh import (
     create_playlist, update_playlist, delete_playlist, playlist_exists,
     load_playlists_overview, get_playlist, PlaylistNotFound
 )
-from utils import inter, open_audio_file, bool_to_state, ALLOWED_EXTENSIONS
+from utils import (
+    inter, open_audio_file, bool_to_state, limit_length,
+    ALLOWED_EXTENSIONS, MAX_PLAYLIST_NAME_DISPLAY_LENGTH
+)
 from widgets import (
     Button, StringEntry, Textbox, Listbox, HorizontalLine, Radiobutton,
     Checkbutton, Table, TableColumn, LoopingFrame
@@ -61,6 +64,31 @@ class SortBy(enum.Enum):
     name = "Name"
     length = "Length"
     date_time_created = "Created"
+
+
+class PlaylistPlayback:
+    """
+    Stores required playlist information during the playback,
+    and also tracks the number of loops and current file being played.
+    """
+
+    def __init__(
+        self, name: str, files: list[str], loops: None | int | float
+    ) -> None:
+        self.name = limit_length(name, MAX_PLAYLIST_NAME_DISPLAY_LENGTH)
+        self.files = files
+        self.loops = loops
+        self.position = 0
+    
+    @property
+    def current(self) -> str:
+        """Current file."""
+        return self.files[self.position]
+
+    @property
+    def at_end(self) -> bool:
+        """Returns True if on last file or beyond., else False."""
+        return self.position >= len(self.files) - 1
 
 
 class PlaylistForm(tk.Frame):
@@ -1081,6 +1109,9 @@ class PlaylistPlayFrame(tk.Frame):
     def start(self) -> None:
         """Starts the playlist playback."""
         self.unbind_keybinds()
+        loops = self.settings_frame.looping_frame.loops
+        playlist = PlaylistPlayback(self.data.name, self.data.files, loops)
+        self.master.start_playlist(playlist)
 
 
 class PlaylistPlayMenu(tk.Menu):

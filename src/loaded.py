@@ -9,7 +9,7 @@ from colours import (
     PROGRESS_BAR_REMAINING_COLOUR, PROGRESS_BAR_DONE_COLOURS,
     PROGRESS_CIRCLE_COLOURS, BG)
 from utils import inter, format_seconds, load_image, bool_to_state
-from widgets import Button, HorizontalLine, LoopingFrame
+from widgets import Button, HorizontalLine, VerticalLine, LoopingFrame
 
 
 PROGRESS_BAR_WIDTH = 500
@@ -26,8 +26,13 @@ class LoadedFrame(tk.Frame):
     def __init__(self, master: "main.AudioPlayer") -> None:
         super().__init__(master)
         audio = master.current
-        master.root.title(
-            f"{main.DEFAULT_TITLE} - Playback - {audio.name_display}")
+        if master.in_playlist:
+            master.root.title(
+                f"{main.DEFAULT_TITLE} - Playlist - {master.playlist.name} - "
+                f"Playback - {audio.name_display}")
+        else:
+            master.root.title(
+                f"{main.DEFAULT_TITLE} - Playback - {audio.name_display}")
         self.name_label = tk.Label(
             self, font=inter(25, True), text=audio.name_display)
         self.file_path_label = tk.Label(
@@ -44,27 +49,35 @@ class LoadedFrame(tk.Frame):
         self.open_file_button = Button(
             self, "Open File", font=inter(12), command=master.open)
         self.stop_button = Button(
-            self, "Stop Playback", font=inter(12), command=master.stop)
+            self, f"Stop {master.stop_button_keyword}", font=inter(12),
+            command=master.stop)
         
         self.menu = LoadedMenu(self)
+
+        if master.in_playlist:
+            self.playlist_frame = PlaylistFrame(self)
+            self.vertical_separator = VerticalLine(self, 500)
+
+            self.playlist_frame.grid(row=0, column=0, rowspan=9, padx=5)
+            self.vertical_separator.grid(row=0, column=1, rowspan=9, padx=25)
         
-        self.name_label.grid(row=0, column=0, sticky="w", padx=5, pady=(100, 2))
+        self.name_label.grid(row=0, column=2, sticky="w", padx=5, pady=(100, 2))
         self.file_path_label.grid(
-            row=1, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+            row=1, column=2, columnspan=2, sticky="w", padx=5, pady=2)
         self.separator.grid(
-            row=2, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+            row=2, column=2, columnspan=2, sticky="w", padx=5, pady=2)
         self.play_progress_frame.grid(
-            row=3, column=0, columnspan=2, padx=5, pady=(25, 5))
+            row=3, column=2, columnspan=2, padx=5, pady=(25, 5))
         self.play_controls_frame.grid(
-            row=4, column=0, columnspan=2, padx=5, pady=(5, 25))
+            row=4, column=2, columnspan=2, padx=5, pady=(5, 25))
         self.play_looping_frame.grid(
-            row=5, column=0, padx=5, pady=(25, 5), sticky="w")
+            row=5, column=2, padx=5, pady=(25, 5), sticky="w")
         self.separator2.grid(
-            row=6, column=0, columnspan=2, sticky="w", padx=5, pady=2)
+            row=6, column=2, columnspan=2, sticky="w", padx=5, pady=2)
         self.open_file_button.grid(
-            row=7, column=1, sticky="e", padx=(25, 5), pady=5)
+            row=7, column=3, sticky="e", padx=(25, 5), pady=5)
         self.stop_button.grid(
-            row=8, column=1, sticky="e", padx=(25, 5), pady=5)
+            row=8, column=3, sticky="e", padx=(25, 5), pady=5)
         
         master.root.config(menu=self.menu)
     
@@ -78,6 +91,16 @@ class LoadedFrame(tk.Frame):
             text=format_seconds(min(duration, current_seconds)))
         progress = current_seconds / duration
         self.play_progress_frame.progress_bar.display_progress(progress)
+    
+    def update_file(self) -> None:
+        """Updates the display after a playlist file change."""
+        audio = self.master.current
+        self.master.root.title(
+            f"{main.DEFAULT_TITLE} - Playlist - {self.master.playlist.name} - "
+            f"Playback - {audio.name_display}")
+        self.name_label.config(text=audio.name_display)
+        self.file_path_label.config(text=audio.file_path_display)
+        self.play_progress_frame.display_duration()
 
 
 class LoadedMenu(tk.Menu):
@@ -106,7 +129,7 @@ class LoadedMenu(tk.Menu):
             command=self.master.play_controls_frame.seek_forward)
         self.playback_menu.add_separator()
         self.playback_menu.add_command(
-            label="Stop Playback", font=inter(12), command=master.master.stop)
+            label="Stop", font=inter(12), command=master.master.stop)
         self.add_cascade(label="Playback", menu=self.playback_menu)
 
         self.playlists_menu = tk.Menu(self, tearoff=False)
@@ -136,7 +159,7 @@ class LoadedMenu(tk.Menu):
         self.playback_menu.entryconfig(
             3, state=bool_to_state(paused is not None))
         self.playback_menu.entryconfig(
-            5, label=f"{'Exit' if paused is None else 'Stop'} Playback")
+            5, label="Exit" if paused is None else "Stop")
 
 
 class PlayProgressFrame(tk.Frame):
@@ -147,23 +170,23 @@ class PlayProgressFrame(tk.Frame):
 
     def __init__(self, master: LoadedFrame) -> None:
         super().__init__(master)
-        audio = master.master.current
-        # Either HH:MM:SS or MM:SS, select a suitable width based on that.
-        width = 5 if audio.duration < 3600 else 8
-
-        self.current_time_label = tk.Label(
-            self, font=inter(12), width=width,
-            text=format_seconds(0), anchor="w")
-        
+        self.current_time_label = tk.Label(self, font=inter(12), anchor="w")
         self.progress_bar = PlayProgressBar(self)
-
-        self.total_time_label = tk.Label(
-            self, font=inter(12), width=width,
-            text=format_seconds(audio.duration), anchor="w")
+        self.total_time_label = tk.Label(self, font=inter(12), anchor="w")
+        self.display_duration()
         
         self.current_time_label.grid(row=0, column=0)
         self.progress_bar.grid(row=0, column=1)
         self.total_time_label.grid(row=0, column=2)
+    
+    def display_duration(self) -> None:
+        """Display the current time / duration appropriately."""
+        audio = self.master.master.current
+        # Either HH:MM:SS or MM:SS, select a suitable width based on that.
+        width = 5 if audio.duration < 3600 else 8
+        self.current_time_label.config(width=width, text=format_seconds(0))
+        self.total_time_label.config(
+            width=width, text=format_seconds(audio.duration))
 
 
 class PlayProgressBar(tk.Canvas):
@@ -409,3 +432,14 @@ class ArrowSeekButton(Button):
     def on_exit(self) -> None:
         """No longer hovering over the image button."""
         self.config(image=self.image)
+
+
+class PlaylistFrame(tk.Frame):
+    """
+    Frame during playback to display the playlist, current file,
+    and to allow the user to select a file to immediately play,
+    go back or forward a file, and set the number of playlist loops.
+    """
+
+    def __init__(self, master: LoadedFrame) -> None:
+        super().__init__(master)
