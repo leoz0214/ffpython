@@ -87,8 +87,12 @@ class PlaylistPlayback:
 
     @property
     def at_end(self) -> bool:
-        """Returns True if on last file or beyond., else False."""
+        """Returns True if on last file or beyond, else False."""
         return self.position >= len(self.files) - 1
+
+    def __len__(self) -> int:
+        """Number of files in the playlist."""
+        return len(self.files)
 
 
 class PlaylistForm(tk.Frame):

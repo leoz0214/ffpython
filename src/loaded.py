@@ -8,8 +8,9 @@ import main
 from colours import (
     PROGRESS_BAR_REMAINING_COLOUR, PROGRESS_BAR_DONE_COLOURS,
     PROGRESS_CIRCLE_COLOURS, BG)
+from playlists import MAX_PLAYLIST_LOOPS
 from utils import inter, format_seconds, load_image, bool_to_state
-from widgets import Button, HorizontalLine, VerticalLine, LoopingFrame
+from widgets import Button, HorizontalLine, VerticalLine, LoopingFrame, Listbox
 
 
 PROGRESS_BAR_WIDTH = 500
@@ -27,9 +28,11 @@ class LoadedFrame(tk.Frame):
         super().__init__(master)
         audio = master.current
         if master.in_playlist:
+            playlist = master.playlist
             master.root.title(
-                f"{main.DEFAULT_TITLE} - Playlist - {master.playlist.name} - "
-                f"Playback - {audio.name_display}")
+                f"{main.DEFAULT_TITLE} - Playlist - {playlist.name} - "
+                f"Playback ({playlist.position + 1}/{len(playlist)}) - "
+                f"{audio.name_display}")
         else:
             master.root.title(
                 f"{main.DEFAULT_TITLE} - Playback - {audio.name_display}")
@@ -95,12 +98,15 @@ class LoadedFrame(tk.Frame):
     def update_file(self) -> None:
         """Updates the display after a playlist file change."""
         audio = self.master.current
+        playlist = self.master.playlist
         self.master.root.title(
-            f"{main.DEFAULT_TITLE} - Playlist - {self.master.playlist.name} - "
-            f"Playback - {audio.name_display}")
+            f"{main.DEFAULT_TITLE} - Playlist - {playlist.name} - "
+            f"Playback ({playlist.position + 1}/{len(playlist)}) - "
+            f"{audio.name_display}")
         self.name_label.config(text=audio.name_display)
         self.file_path_label.config(text=audio.file_path_display)
         self.play_progress_frame.display_duration()
+        self.playlist_frame.seek_frame.update_state()
 
 
 class LoadedMenu(tk.Menu):
@@ -327,7 +333,10 @@ class PlayControlsFrame(tk.Frame):
     def change(delay: float) -> Callable:
         """Decorator to limit rate of changes due to threading instability."""
         def inner(method: Callable) -> Callable:
-            def wrapper(self: "PlayControlsFrame", forced: bool = False) -> Any:
+            def wrapper(
+                self: "PlayControlsFrame", forced: bool = False,
+                *args, **kwargs
+            ) -> Any:
                 timestamp = timer()
                 if (
                     (not forced) and self.last_change is not None
@@ -335,22 +344,24 @@ class PlayControlsFrame(tk.Frame):
                 ):
                     return
                 self.last_change = timestamp
-                return method(self)
+                return method(self, *args, **kwargs)
             return wrapper
         return inner
     
     @change(STATE_CHANGE_REFRESH_RATE)
-    def change_state(self) -> None:
+    def change_state(self, from_file_change: bool = False) -> None:
         """Pauses the audio if playing, resumes the audio if paused."""
         if self.paused is None:
             # No longer playing - new playback.
-            self.master.master.replay()
+            if not from_file_change:
+                self.master.master.replay()
             self.state_button.set_pause_image()
             self.paused = False
         else:
             if self.paused:
                 # Paused, so now resume.
-                self.master.master.resume()
+                if not from_file_change:
+                    self.master.master.resume()
                 self.state_button.set_pause_image()
             else:
                 # Playing, so now pause.
@@ -410,7 +421,7 @@ class PlayStateButton(Button):
 
 
 class ArrowSeekButton(Button):
-    """Allows the user to move back or forward in playback."""
+    """Allows the user to move back or forward in playback/playlist."""
 
     def __init__(
         self, master: PlayControlsFrame, image: str, hover_image: str,
@@ -443,3 +454,82 @@ class PlaylistFrame(tk.Frame):
 
     def __init__(self, master: LoadedFrame) -> None:
         super().__init__(master)
+        playlist = master.master.playlist
+        self.title = tk.Label(
+            self, font=inter(15, True), text=playlist.name, wraplength=300)
+        self.listbox = PlaylistListbox(self)
+        zfill = len(str(len(playlist)))
+        self.listbox.extend(
+            f"{str(i).zfill(zfill)} | {file}"
+            for i, file in enumerate(playlist.files, 1))
+        self.update_select()
+
+        self.seek_frame = PlaylistSeekFrame(self)
+        self.looping_frame = LoopingFrame(self, MAX_PLAYLIST_LOOPS, playlist)
+
+        self.title.pack(padx=5, pady=5)
+        self.listbox.pack(padx=5, pady=5)
+        self.seek_frame.pack(padx=5, pady=5)
+        self.looping_frame.pack(padx=5, pady=5, anchor="w")
+    
+    def select_file(self) -> None:
+        """Selects a file and plays it."""
+        position = self.listbox.current_index
+        if position is None:
+            return
+        self.master.master.play_at_position(position)
+    
+    def move(self, offset: int) -> None:
+        """Moves n files forward (+) or back (-) in the playlist."""
+        new_position = self.listbox.current_index + offset
+        self.master.master.play_at_position(new_position)
+    
+    def update_select(self) -> None:
+        """Updates currently selected file as required."""
+        position = self.master.master.playlist.position
+        self.listbox.listbox.select_clear(0, "end")
+        self.listbox.listbox.select_set(position)
+
+
+class PlaylistListbox(Listbox):
+    """
+    Stores the files of the playlist and
+    allows the user to view the files and seek to any of them.
+    """
+
+    def __init__(self, master: PlaylistFrame) -> None:
+        super().__init__(
+            master, inter(10), width=36, horizontal_scrollbar=True)
+        self.listbox.bind("<<ListboxSelect>>", lambda *_: master.select_file())
+
+
+class PlaylistSeekFrame(tk.Frame):
+    """
+    Allows the user to move forward or back a file in a playlist,
+    and also displays the current position in the playlist.
+    """
+
+    def __init__(self, master: PlaylistFrame) -> None:
+        super().__init__(master)
+        self.back_button = ArrowSeekButton(
+            self, "back.png", "backhover.png", command=lambda: master.move(-1))
+        width = len(str(len(master.master.master.playlist))) * 2 + 5
+        self.position_label = tk.Label(self, font=inter(12), width=width)
+        self.forward_button = ArrowSeekButton(
+            self, "forward.png", "forwardhover.png",
+            command=lambda: master.move(+1))
+        self.update_state()
+        
+        self.back_button.pack(padx=5, pady=5, side="left")
+        self.position_label.pack(padx=5, pady=5, side="left")
+        self.forward_button.pack(padx=5, pady=5, side="right")
+        
+    def update_state(self) -> None:
+        """
+        Updates the state of the buttons and the display of the position label.
+        """
+        playlist = self.master.master.master.playlist
+        self.back_button.config(state=bool_to_state(playlist.position > 0))
+        self.position_label.config(
+            text=f"{playlist.position + 1} / {len(playlist)}")
+        self.forward_button.config(state=bool_to_state(not playlist.at_end))

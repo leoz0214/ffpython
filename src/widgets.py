@@ -453,18 +453,18 @@ class LoopingFrame(tk.Frame):
 
     def __init__(
         self, master: tk.Frame, max_loops: int,
-        loop_variable_frame: tk.Frame = None,
+        loop_variable_object: Any = None,
         loop_variable_name: str = "loops"
     ) -> None:
         super().__init__(master)
         self.loop_image = load_image("loop.png")
         self.max_loops = max_loops
-        if loop_variable_frame is None:
-            self.loop_variable_frame = self
+        if loop_variable_object is None:
+            self.loop_variable_object = self
             self.loop_variable_name = "_loops"
             self._loops = None
         else:
-            self.loop_variable_frame = loop_variable_frame
+            self.loop_variable_object = loop_variable_object
             self.loop_variable_name = loop_variable_name
         
         self.image = tk.Label(self, image=self.loop_image)
@@ -489,11 +489,11 @@ class LoopingFrame(tk.Frame):
     
     @property
     def loops(self) -> None | int | float:
-        return getattr(self.loop_variable_frame, self.loop_variable_name)
+        return getattr(self.loop_variable_object, self.loop_variable_name)
     
     @loops.setter
     def loops(self, loops: None | int | float) -> None:
-        setattr(self.loop_variable_frame, self.loop_variable_name, loops)
+        setattr(self.loop_variable_object, self.loop_variable_name, loops)
     
     def off(self) -> None:
         """Turns looping off."""

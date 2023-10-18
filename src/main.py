@@ -130,11 +130,23 @@ class AudioPlayer(tk.Frame):
             self.stop()
             return
         self.frame.update_file()
+        self.frame.playlist_frame.update_select()
         self.start_playback_thread()
+    
+    def play_at_position(self, position: int) -> None:
+        """Plays the file in a playlist at the given index."""
+        self.current.stop()
+        self.current = None
+        self.frame.play_looping_frame.off()
+        if self.frame.play_controls_frame.paused is not False:
+            self.frame.play_controls_frame.change_state(from_file_change=True)
+        self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
+        self.playlist.position = position
+        self.play_current()
 
     def play(self, from_seek: bool = False) -> None:
         """Plays the audio. Must be called through a thread."""
-        file_path = self.current.file_path
+        current = self.current
         try:
             # Should not play anything if playing from a seek and virtually
             # already done.
@@ -175,6 +187,8 @@ class AudioPlayer(tk.Frame):
                         else:
                             # Decrements loops and restarts the playlist.
                             self.playlist.loops -= 1
+                            playlist_frame = self.frame.playlist_frame
+                            playlist_frame.looping_frame.update_display()
                             self.playlist.position = 0
                         self.play_current()
                         return
@@ -190,7 +204,7 @@ class AudioPlayer(tk.Frame):
                 # Set the state update in menu as 'Replay'.
                 self.frame.menu.change_state()
         except Exception as e:
-            if self.current != file_path:
+            if self.current is not current:
                 # Already stopped or another file loaded, so ignore the error.
                 return
             messagebox.showerror(
@@ -222,13 +236,14 @@ class AudioPlayer(tk.Frame):
     
     def replay(self, from_loop: bool = False) -> None:
         """Replays the audio, or the entire playlist."""
+        self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
         if from_loop or not self.in_playlist:
             # Repeat audio.
             self.frame.update_progress(0)
-            self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
             self.start_playback_thread()
             return
         # Repeat playlist.
+        self.frame.play_controls_frame.change_state(from_file_change=True)
         self.playlist.position = 0
         self.play_current()
     
