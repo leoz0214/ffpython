@@ -25,8 +25,10 @@ from widgets import (
 )
 
 
+# Sensible playlist metadata length limits.
 MAX_PLAYLIST_NAME_LENGTH = 100
 MAX_PLAYLIST_DESCRIPTION_LENGTH = 2000
+# Sensible minimum and maximum playlist lengths.
 MIN_PLAYLIST_LENGTH = 2
 MAX_PLAYLIST_LENGTH = 1000
 # Prevent performance issues - set a limit on the number of
@@ -134,6 +136,7 @@ class PlaylistForm(tk.Frame):
             self, font=inter(30, True),
             text=f"{self.keyword.title()} Playlist")
         if self.new:
+            # Create blank inputs to start with.
             self.metadata_frame = PlaylistFormMetadataFrame(self)
             self.audio_frame = PlaylistFormAudioFrame(self)
         else:

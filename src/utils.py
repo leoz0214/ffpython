@@ -10,7 +10,7 @@ from PIL import ImageTk
 APP_FOLDER = pathlib.Path(__file__).parent.parent
 IMAGES_FOLDER = APP_FOLDER / "images"
 FONT_FOLDER = APP_FOLDER / "font"
-BIN_FOLDER = APP_FOLDER / "bin"
+BINARY_FOLDER = APP_FOLDER / "bin"
 
 
 # Load Inter font downloaded online.
@@ -21,7 +21,7 @@ MAX_AUDIO_NAME_DISPLAY_LENGTH = 24
 MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH = 64
 # Max playlist name display length in the table.
 MAX_PLAYLIST_NAME_DISPLAY_LENGTH = 48
-
+# A list of permitted audio extensions.
 ALLOWED_EXTENSIONS_DICT = {
     ".mp3": "MP3",
     ".wav": "WAV",
@@ -66,6 +66,7 @@ def format_seconds(seconds: float) -> str:
     hours = str(seconds // 3600).zfill(2)
     minutes = str(seconds // 60 % 60).zfill(2)
     seconds = str(seconds % 60).zfill(2)
+    # Only display hours if hours > 0.
     if hours != "00":
         return f"{hours}:{minutes}:{seconds}"
     return f"{minutes}:{seconds}"

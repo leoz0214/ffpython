@@ -14,12 +14,12 @@ from typing import Callable, Any
 
 from utils import (
     MAX_AUDIO_NAME_DISPLAY_LENGTH, MAX_AUDIO_FILE_PATH_DISPLAY_LENGTH,
-    BIN_FOLDER, limit_length
+    BINARY_FOLDER, limit_length
 )
 
 
 get_memory_usage_alt = ctypes.CDLL(
-    str(BIN_FOLDER / "memory_usage.so")).get_memory_usage
+    str(BINARY_FOLDER / "memory_usage.so")).get_memory_usage
 
 
 class Audio:
@@ -156,7 +156,7 @@ class Audio:
     
     @property
     def current_seconds(self) -> float:
-        """Current time in the audio playback."""
+        """Current time (seconds) in the audio playback."""
         if self.start_time is None:
             return 0
         return timer() - self.start_time - self.paused_time
@@ -209,12 +209,11 @@ def load_audio(file_path: str) -> Audio:
             "installed, and that the audio file is valid?")
     except subprocess.TimeoutExpired:
         raise TimeoutError("Timeout while trying to fetch audio metadata.")
-
+    # Obtains audio duration, raising an error upon failure.
     try:
         duration = float(json_data["format"]["duration"])
     except (KeyError, ValueError):
         raise ValueError("Invalid audio file - duration not found.")
-
     # Expect at least some audio in the file for it to be 'valid'.
     if not any(
         stream["codec_type"] == "audio" for stream in json_data["streams"]

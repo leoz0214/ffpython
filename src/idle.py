@@ -1,4 +1,4 @@
-"""GUI for when the audio player is in an idle state."""
+"""GUI for when the audio player is in an idle state i.e. the home screen."""
 import tkinter as tk
 
 import main
@@ -21,10 +21,14 @@ class IdleFrame(tk.Frame):
             self, font=inter(15, italic=True), text="Powered by FFmpeg")
         self.open_file_button = Button(
             self, "Open File", font=inter(25), command=master.open)
+        self.open_playlist_button = Button(
+            self, "Open Playlist", font=inter(25),
+            command=master.view_playlists)
 
         self.title.pack(padx=100, pady=(25, 0))
         self.subtitle.pack(padx=100, pady=(0, 25))
-        self.open_file_button.pack(padx=100, pady=25)
+        self.open_file_button.pack(padx=100, pady=(25, 10))
+        self.open_playlist_button.pack(padx=100, pady=(10, 25))
         master.root.config(menu=self.menu)
 
 

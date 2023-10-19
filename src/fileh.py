@@ -1,4 +1,4 @@
-"""Handles file IO, save data and database of the app etc."""
+"""Handles file IO, save data and the playlist database of the app etc."""
 import datetime as dt
 import json
 import pathlib
@@ -12,6 +12,7 @@ from utils import (
 )
 
 
+# Base data folder.
 DATA_FOLDER = APP_FOLDER / "data"
 # Last used import folder settings.
 IMPORT_FOLDER_SETTINGS = DATA_FOLDER / "import_folder_settings.json"
@@ -41,7 +42,7 @@ class Database:
         self.path = database_path
         self._instance = None
     
-    def __enter__(self) -> None:
+    def __enter__(self) -> sqlite3.Cursor:
         """Returns the database cursor upon starting the with statement."""
         self._instance = sqlite3.connect(self.path)
         return self._instance.cursor()
@@ -159,8 +160,7 @@ def delete_old_audio_ids(
             f"""
             SELECT EXISTS
             (SELECT * FROM {AUDIO_PLAYLISTS_TABLE} WHERE audio_id=?)
-            """, (audio_id,)).fetchone()[0])
-    ]
+            """, (audio_id,)).fetchone()[0])]
     cursor.executemany(
         f"DELETE FROM {AUDIO_TABLE} WHERE id=?",
         ([audio_id] for audio_id in to_delete))
@@ -304,7 +304,7 @@ def get_playlist(playlist_id: int) -> Playlist:
             WHERE playlist_id=?
             """, (playlist_id,)).fetchall()
         # Ensures file records are in the correct order/position.
-        # They should be, but just to be sure.
+        # They should be, but this is just to be sure.
         file_records.sort(key=lambda record: record[1])
         # Gets corresponding file paths now.
         files = [

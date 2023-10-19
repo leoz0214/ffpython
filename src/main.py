@@ -13,12 +13,16 @@ import playlists
 from audio import load_audio
 from colours import FG, BG
 from fileh import set_up_database
-from utils import open_audio_file
+from utils import open_audio_file, IMAGES_FOLDER
 
 
 DEFAULT_TITLE = "FFPython"
+# App icon.
+ICON = IMAGES_FOLDER / "icon.ico"
+# Reasonable minimum window dimensions.
 MIN_WIDTH = 400
 MIN_HEIGHT = 300
+# Hard-coded *for now) number of seconds to seek back/forward with arrows.
 SEEK_SECONDS = 10
 
 
@@ -31,7 +35,6 @@ class AudioPlayer(tk.Frame):
     def __init__(self, root: tk.Tk) -> None:
         super().__init__(root)
         self.root = root
-        self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
         self.root.bind("<Control-o>", lambda *_: self.open())
 
         # Current Audio object. Is None when not loaded.
@@ -61,8 +64,7 @@ class AudioPlayer(tk.Frame):
             self.current = load_audio(file_path)
         except Exception as e:
             messagebox.showerror(
-                "Error",
-                    f"Failed to load audio due to the following error: {e}")
+                "Error", f"An error occurred while trying to load audio: {e}")
             return
 
         self.update_state()
@@ -71,11 +73,14 @@ class AudioPlayer(tk.Frame):
     
     def bind_playback_keys(self) -> None:
         """Binds playback control keys."""
+        # The spacebar allows pause, resume, replay.
         self.root.bind(
             "<space>",
             lambda *_: self.frame.play_controls_frame.change_state())
+        # The left arrow allows seek back.
         self.root.bind(
             "<Left>", lambda *_: self.frame.play_controls_frame.seek_back())
+        # The right arrow allows seek forward.
         self.root.bind(
             "<Right>",
             lambda *_: self.frame.play_controls_frame.seek_forward())
@@ -89,13 +94,14 @@ class AudioPlayer(tk.Frame):
     def update_state(self, frame: tk.Frame | Callable | None = None) -> None:
         """
         Moves to a given frame, or to the idle frame if no audio is loaded,
-        or else, displays the main frame.
+        or else, displays the main loaded frame.
         """
         self.frame.destroy()
         self.root.unbind("<Control-o>")
         if frame is not None:
             self.frame = frame(self)
         else:
+            # By default, launch the idle or loaded frame as required.
             self.frame = (
                 idle.IdleFrame if self.current is None else loaded.LoadedFrame
             )(self)
@@ -110,7 +116,8 @@ class AudioPlayer(tk.Frame):
     def block_gui_command(command: Callable) -> Callable:
         """
         Decorator which blocks the GUI while a command
-        is running by faking a button click. Useful in a thread.
+        is running, by faking a button click. Useful in a thread
+        to avoid race conditions.
         """
         def wrapper(self, *args, **kwargs) -> Any:
             return tk.Button(
@@ -124,9 +131,7 @@ class AudioPlayer(tk.Frame):
             self.current = load_audio(self.playlist.current)
         except Exception as e:
             messagebox.showerror(
-                "Error",
-                    f"Failed to load audio file: {self.playlist.current} "
-                    f"due to the following error: {e}")
+                "Error", f"An error occurred while trying to load audio: {e}")
             self.stop()
             return
         self.frame.update_file()
@@ -137,7 +142,9 @@ class AudioPlayer(tk.Frame):
         """Plays the file in a playlist at the given index."""
         self.current.stop()
         self.current = None
+        # Resets looping by turning it off.
         self.frame.play_looping_frame.off()
+        # If audio is paused while the switch takes place, reset state.
         if self.frame.play_controls_frame.paused is not False:
             self.frame.play_controls_frame.change_state(from_file_change=True)
         self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
@@ -192,7 +199,7 @@ class AudioPlayer(tk.Frame):
                             self.playlist.position = 0
                         self.play_current()
                         return
-            
+                # Once playback/playlists completely finishes, this is reached.
                 self.frame.stop_button.config(
                     text=f"Exit {self.stop_button_keyword}")
                 # Make progress 100% to indicate completion.
@@ -209,7 +216,7 @@ class AudioPlayer(tk.Frame):
                 return
             messagebox.showerror(
                 "Playback Error",
-                    f"Unfortunately, an playback error has occurred: {e}")
+                    f"A playback error has occurred: {e}")
             self.stop()
     
     def pause(self) -> None:
@@ -250,10 +257,11 @@ class AudioPlayer(tk.Frame):
     def seek_after_end(self) -> None:
         """
         Method to update the state whenever playback has reached the end
-        but the user seeks backs into the audio, so will no longer
+        but the user seeks backs into the audio, so the audio will no longer
         be at the end.
         """
         self.frame.stop_button.config(text=f"Stop {self.stop_button_keyword}")
+        # Manually sets the state to playing.
         self.frame.play_controls_frame.paused = False
         self.frame.play_controls_frame.state_button.set_pause_image()
         self.frame.menu.change_state()
@@ -311,9 +319,7 @@ class AudioPlayer(tk.Frame):
             self.current = load_audio(self.playlist.current)
         except Exception as e:
             messagebox.showerror(
-                "Error",
-                    f"Failed to load audio file: {self.playlist.current} "
-                    f"due to the following error: {e}")
+                "Error", f"An error occurred while trying to load audio: {e}")
             return
         self.update_state()
         self.bind_playback_keys()
@@ -325,6 +331,8 @@ def main() -> None:
     set_up_database()
     root = tk.Tk()
     root.tk_setPalette(foreground=FG, background=BG)
+    root.minsize(MIN_WIDTH, MIN_HEIGHT)
+    root.iconbitmap(ICON, ICON)
     root.protocol("WM_DELETE_WINDOW", lambda: quit_app(root))
     audio_player = AudioPlayer(root)
     audio_player.pack()

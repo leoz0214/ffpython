@@ -7,17 +7,21 @@ from typing import Callable, Any
 import main
 from colours import (
     PROGRESS_BAR_REMAINING_COLOUR, PROGRESS_BAR_DONE_COLOURS,
-    PROGRESS_CIRCLE_COLOURS, BG)
+    PROGRESS_CIRCLE_COLOURS, BG
+)
 from playlists import MAX_PLAYLIST_LOOPS
 from utils import inter, format_seconds, load_image, bool_to_state
 from widgets import Button, HorizontalLine, VerticalLine, LoopingFrame, Listbox
 
 
+# Progress bar size constants.
 PROGRESS_BAR_WIDTH = 500
 PROGRESS_CIRCLE_RADIUS = 6
 PROGRESS_BAR_HEIGHT = 6
+
 STATE_CHANGE_REFRESH_RATE = 0.1
 ARROW_SEEK_CHANGE_REFRESH_RATE = 0.25
+
 MAX_LOOPS = 99 # Before infinite
 
 
@@ -29,6 +33,7 @@ class LoadedFrame(tk.Frame):
         audio = master.current
         if master.in_playlist:
             playlist = master.playlist
+            # Full title - playlist/position/audio info.
             master.root.title(
                 f"{main.DEFAULT_TITLE} - Playlist - {playlist.name} - "
                 f"Playback ({playlist.position + 1}/{len(playlist)}) - "
@@ -36,6 +41,7 @@ class LoadedFrame(tk.Frame):
         else:
             master.root.title(
                 f"{main.DEFAULT_TITLE} - Playback - {audio.name_display}")
+
         self.name_label = tk.Label(
             self, font=inter(25, True), text=audio.name_display)
         self.file_path_label = tk.Label(
@@ -59,11 +65,14 @@ class LoadedFrame(tk.Frame):
 
         if master.in_playlist:
             self.playlist_frame = PlaylistFrame(self)
+            # Separates playlist frame from the main playback frame.
             self.vertical_separator = VerticalLine(self, 500)
 
             self.playlist_frame.grid(row=0, column=0, rowspan=9, padx=5)
             self.vertical_separator.grid(row=0, column=1, rowspan=9, padx=25)
         
+        # All columns are shifted 2 to the right in case of
+        # the playlist widgets above.
         self.name_label.grid(row=0, column=2, sticky="w", padx=5, pady=(100, 2))
         self.file_path_label.grid(
             row=1, column=2, columnspan=2, sticky="w", padx=5, pady=2)
@@ -125,7 +134,7 @@ class LoadedMenu(tk.Menu):
         self.playback_menu = tk.Menu(self, tearoff=False)
         self.playback_menu.add_command(
             label="Pause (space)", font=inter(12),
-            command=lambda: self.change_state(True))
+            command=lambda: self.change_state(from_menu=True))
         self.playback_menu.add_separator()
         self.playback_menu.add_command(
             label="Seek Back (←)", font=inter(12),
@@ -149,7 +158,7 @@ class LoadedMenu(tk.Menu):
     def change_state(self, from_menu: bool = False) -> None:
         """
         Changes state if invoked from the menu,
-        and then updates the command name pause/resume/replay
+        and then updates the command name: pause/resume/replay
         based on the current playback state.
         """
         if from_menu:
@@ -312,11 +321,13 @@ class PlayProgressBar(tk.Canvas):
 
 class PlayControlsFrame(tk.Frame):
     """
-    Handles playback controls e.g. pause, resume, seek back, seek forward etc.
+    Handles playback controls i.e. pause, resume, seek back, seek forward etc.
     """
 
     def __init__(self, master: LoadedFrame) -> None:
         super().__init__(master)
+        # Important state variable - paused.
+        # True: paused. False: playing. None: playback done, at end.
         self.paused = False
         self.back_button = ArrowSeekButton(
             self, "back.png", "backhover.png", self.seek_back)
@@ -513,6 +524,8 @@ class PlaylistSeekFrame(tk.Frame):
         super().__init__(master)
         self.back_button = ArrowSeekButton(
             self, "back.png", "backhover.png", command=lambda: master.move(-1))
+        # Determines an appropriate width for the progress label
+        # based on the total number of playlists (each digit takes up space).
         width = len(str(len(master.master.master.playlist))) * 2 + 5
         self.position_label = tk.Label(self, font=inter(12), width=width)
         self.forward_button = ArrowSeekButton(
@@ -529,7 +542,9 @@ class PlaylistSeekFrame(tk.Frame):
         Updates the state of the buttons and the display of the position label.
         """
         playlist = self.master.master.master.playlist
+        # Can only go back if not at the first file.
         self.back_button.config(state=bool_to_state(playlist.position > 0))
         self.position_label.config(
             text=f"{playlist.position + 1} / {len(playlist)}")
+        # Can only go forward if not at the last file.
         self.forward_button.config(state=bool_to_state(not playlist.at_end))
