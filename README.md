@@ -2,12 +2,15 @@
 
 This project is a Python app using the open source ffmpeg software
 which provides the functionality of playing, pausing and resuming audio,
-supporting various common file formats including:
+supporting various audio file formats including:
 
 - mp3
-- wav
+- wav/wma
 - ogg/oga
 - m4a
+- acc
+- flac
+- opus
 - mp4 (audio only)
 
 Common audio player features are included, such as:

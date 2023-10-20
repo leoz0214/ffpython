@@ -1,6 +1,7 @@
 """Handles file IO, save data and the playlist database of the app etc."""
 import datetime as dt
 import json
+import os
 import pathlib
 import sqlite3
 from collections import namedtuple
@@ -13,7 +14,14 @@ from utils import (
 
 
 # Base data folder.
-DATA_FOLDER = APP_FOLDER / "data"
+# When True, set data folder to be in project directory.
+# When False, put data folder into Local AppData.
+DEBUG = False
+if DEBUG:
+    DATA_FOLDER = APP_FOLDER / "data"
+else:
+    local_app_data_folder = pathlib.Path(os.getenv("LOCALAPPDATA"))
+    DATA_FOLDER = local_app_data_folder / "FFPythonAudioPlayer"
 # Last used import folder settings.
 IMPORT_FOLDER_SETTINGS = DATA_FOLDER / "import_folder_settings.json"
 # Database of the app, including playlist data.

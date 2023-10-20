@@ -1,5 +1,6 @@
 """Utilities for the program."""
 import pathlib
+import sys
 from tkinter import filedialog
 from tkinter import messagebox
 
@@ -7,7 +8,10 @@ import pyglet
 from PIL import ImageTk
 
 
-APP_FOLDER = pathlib.Path(__file__).parent.parent
+if hasattr(sys, "_MEIPASS"):
+    APP_FOLDER = pathlib.Path(sys._MEIPASS)
+else:
+    APP_FOLDER = pathlib.Path(__file__).parent.parent
 IMAGES_FOLDER = APP_FOLDER / "images"
 FONT_FOLDER = APP_FOLDER / "font"
 BINARY_FOLDER = APP_FOLDER / "bin"
@@ -24,10 +28,14 @@ MAX_PLAYLIST_NAME_DISPLAY_LENGTH = 48
 # A list of permitted audio extensions.
 ALLOWED_EXTENSIONS_DICT = {
     ".mp3": "MP3",
-    ".wav": "WAV",
     ".ogg": "OGG",
     ".oga": "OGG",
     ".m4a": "M4A",
+    ".wav": "WAV",
+    ".wma": "WMA",
+    ".aac": "AAC",
+    ".flac": "FLAC",
+    ".opus": "OPUS",
     ".mp4": "MP4 (Audio only)"
 }
 ALLOWED_EXTENSIONS = tuple(ALLOWED_EXTENSIONS_DICT)
@@ -83,17 +91,22 @@ def bool_to_state(expression: bool) -> str:
     return "normal" if expression else "disabled"
 
 
-def open_audio_file() -> str | None:
+def open_audio_file(file_path: str | None = None) -> str | None:
     """
     Prompts the user for an audio,
     returns the path or None if invalid or cancelled.
+
+    Can also take a file path but performs validation before
+    accepting it into the program. This is useful in case of
+    starting the script from the terminal with an initial file path.
     """
-    file_path = filedialog.askopenfilename(
-        filetypes=(
-            *(("Audio", extension) for extension in ALLOWED_EXTENSIONS),
-            *(
-                (name, extension)
-                for extension, name in ALLOWED_EXTENSIONS_DICT.items())))
+    if file_path is None:
+        file_path = filedialog.askopenfilename(
+            filetypes=(
+                *(("Audio", extension) for extension in ALLOWED_EXTENSIONS),
+                *(
+                    (name, extension)
+                    for extension, name in ALLOWED_EXTENSIONS_DICT.items())))
     if not file_path:
         # Cancelled.
         return None

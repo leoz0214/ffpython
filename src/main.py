@@ -1,4 +1,5 @@
 """Main module of the app."""
+import atexit
 import sys
 import threading
 import time
@@ -47,10 +48,14 @@ class AudioPlayer(tk.Frame):
         # Set initial frame: the home screen.
         self.frame = idle.IdleFrame(self)
         self.frame.pack(padx=25, pady=25)
+        # Starting file passed in as first argumnt
+        # - play upon app initialisation.
+        if len(sys.argv) > 1:
+            self.open(sys.argv[1])
     
-    def open(self) -> None:
+    def open(self, file_path: str | None = None) -> None:
         """Opens an audio file in the GUI."""
-        file_path = open_audio_file()
+        file_path = open_audio_file(file_path)
         if file_path is None:
             return
 
@@ -336,6 +341,7 @@ def main() -> None:
     root.protocol("WM_DELETE_WINDOW", lambda: quit_app(root))
     audio_player = AudioPlayer(root)
     audio_player.pack()
+    atexit.register(terminate, root)
     root.mainloop()
 
 
@@ -346,7 +352,12 @@ def quit_app(root: tk.Tk | None = None) -> None:
     # Otherwise check a few things before quitting.
     if root is not None:
         # Gets the child frame of the Audio Player.
-        frame = root.winfo_children()[0].winfo_children()[0]
+        audio_player = root.winfo_children()[0]
+        # Ensure FFplay process is stopped before closing the program.
+        if audio_player.current is not None:
+            audio_player.current.stop()
+            audio_player.current = None
+        frame = audio_player.winfo_children()[0]
         if isinstance(frame, playlists.PlaylistForm):
             if not messagebox.askyesnocancel(
                 "Confirm Exit App",
@@ -355,6 +366,15 @@ def quit_app(root: tk.Tk | None = None) -> None:
             ):
                 return
     sys.exit(0)
+
+
+def terminate(root: tk.Tk) -> None:
+    """Final cleanup function."""
+    # Ensure FFplay process is killed before closing the program.
+    # It is also done in quit_app, but this handles KeyboardInterrupt exit.
+    audio_player = root.winfo_children()[0]
+    if audio_player.current is not None:
+        audio_player.current.stop()
 
 
 if __name__ == "__main__":
